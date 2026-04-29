@@ -41,7 +41,7 @@ The implementation should progress in usable slices, not by completing the whole
 7. **Phase G - Integration, docs, and polish**
    - Goal: harden behavior across realistic projects and document public usage.
    - Scope: E2E tests against `examples/demo-project`, public README/docs, complete JSON schema artifact, CI examples, and release packaging.
-   - Status: **partial**; T7.1 E2E full-flow tests now cover the built CLI against `examples/demo-project`, `doctor`, real Biome findings, background job status/result/pending feedback, baseline init suppression, direct hook installation, non-interactive `init`, `install-skill --agent=all`, and the committed report schema artifact. T7.2 public docs, CI examples, and release packaging remain.
+   - Status: **partial**; T7.1 E2E full-flow tests now cover the built CLI against `examples/demo-project`, `doctor`, real Biome findings, background job status/result/pending feedback, baseline init suppression, direct hook installation, non-interactive `init`, `install-skill --agent=all`, and the committed report schema artifact. T7.2 public README/docs are now in place. CI examples, release packaging, and deeper baseline E2E coverage remain.
 
 8. **Phase H - Additional check packages (Deferred)**
    - Goal: add the remaining heavier check packages.
@@ -140,6 +140,18 @@ Additional defects found and fixed while broadening T7.1:
 - Baseline adoption could make later Biome checks fail on Sentiness runtime files such as `.sentiness/baseline.json`; the Biome check now ignores `.sentiness/` paths.
 - `sentiness init` was hard to test safely because the wizard only had an interactive path; it now supports `--yes`, `--checks=<ids>`, and `--no-baseline`.
 - The committed JSON schema artifact was effectively empty because the old `zod-to-json-schema` path did not produce a useful schema for the current Zod runtime. Schema generation now uses Zod's `toJSONSchema()` from the built runtime schema and formats the generated artifact with Biome.
+
+### T7.2 public documentation
+
+Added the public documentation surface from `CLAUDE.md` Phase 7:
+
+- `README.md` - project overview, current implementation status, quick start, CLI command map, config example, report contract, and local development gates.
+- `docs/getting-started.md` - local checkout workflow, target-project initialization, daily check commands, background jobs, hooks, agent instructions, exit codes, and troubleshooting.
+- `docs/writing-a-check.md` - check package discovery, minimal `Check` implementation, normalization/fingerprint responsibilities, metrics, and test expectations.
+- `docs/baseline-strategy.md` - baseline file policy, initial adoption, diff/trend behavior, accepting findings, metric ratcheting, pruning, fingerprint discipline, and review rules.
+- `docs/agent-skill.md` - supported agents, managed marker behavior, installed instruction contents, recommended agent workflow, reinstall triggers, and troubleshooting.
+
+The docs intentionally do not claim release packaging is complete. They distinguish this checkout's `pnpm sentiness ...` workflow from target projects where a `sentiness` binary is already available.
 
 ---
 
@@ -244,6 +256,17 @@ pnpm test:e2e
 pnpm sentiness check --tier=fast --compact
 ```
 
+After T7.2 public docs, the following commands were rerun successfully:
+
+```sh
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm test:e2e
+pnpm sentiness check --tier=fast --compact
+git diff --check
+```
+
 `pnpm test:e2e` includes a full `pnpm build` before running the CLI E2E suite.
 
 Additional CLI smoke validation:
@@ -299,19 +322,15 @@ Missing check packages (Phase H):
 ### Test gaps
 
 - E2E full-flow suite exists for `doctor`, `check`, blocking findings, background status/result/pending feedback/ack, baseline init suppression, `install-hooks`, non-interactive `init`, `install-skill`, and the generated report schema artifact.
-- Remaining E2E gaps: deeper baseline workflows (`update`, `accept`, `prune`), hook idempotency/error cases, generated public docs examples after T7.2, CI examples, and release packaging.
+- Remaining E2E gaps: deeper baseline workflows (`update`, `accept`, `prune`), hook idempotency/error cases, CI examples, release packaging, and optional validation that public docs command examples stay current.
 
 ## Recommended next steps
 
-1. **T7.2 Documentation**
-   - Add public README usage docs.
-   - Add `docs/getting-started.md`, `docs/writing-a-check.md`, `docs/baseline-strategy.md`, and `docs/agent-skill.md`.
-
-2. **Remaining T7 polish**
+1. **Remaining T7 polish**
    - Add deeper E2E coverage for baseline `update`, `accept`, and `prune`.
    - Add public docs example validation, CI examples, and release packaging checks.
 
-3. **Deferred check packages**
+2. **Deferred check packages**
    - Implement dependency-cruiser, osv-scanner, lockfile-lint, deps-diff, jscpd, and semgrep when the core agent loop is covered by E2E.
 
 ## How to resume safely
