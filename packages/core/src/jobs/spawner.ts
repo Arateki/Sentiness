@@ -14,7 +14,7 @@ export class JobSpawner {
 
   async spawn(command: string, args: readonly string[], options: SpawnOptions): Promise<JobMeta> {
     // Generate jobId via node:crypto
-    const jobId = randomUUID();
+    const jobId = options.jobId ?? randomUUID();
     const jobDir = join(this.jobsDir, jobId);
 
     // Create <jobsDir>/<jobId>/

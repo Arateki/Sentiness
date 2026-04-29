@@ -1,6 +1,9 @@
+import { randomUUID } from 'node:crypto';
 import { dirname } from 'node:path';
 import type { CheckMetrics, FileSystem, Finding, GitProvider } from '@sentiness/check-sdk';
+import { z } from 'zod';
 import type { RunOutcome } from '../runner/runner.js';
+import { BaselineSnapshotSchema } from './schema.js';
 
 export type BaselineEntry = {
   readonly checkId: string;
@@ -36,6 +39,32 @@ export class BaselineParseError extends Error {
     super(message, options);
     this.name = 'BaselineParseError';
   }
+}
+
+function zodErrorMessage(error: z.ZodError): string {
+  return error.issues
+    .map((issue) => `${issue.path.join('.') || '<root>'}: ${issue.message}`)
+    .join('; ');
+}
+
+function normalizeSnapshot(snapshot: z.infer<typeof BaselineSnapshotSchema>): BaselineSnapshot {
+  return {
+    schemaVersion: snapshot.schemaVersion,
+    createdAt: snapshot.createdAt,
+    createdAtCommit: snapshot.createdAtCommit,
+    suppressed: snapshot.suppressed.map((entry) => ({
+      checkId: entry.checkId,
+      ruleId: entry.ruleId,
+      fingerprint: entry.fingerprint,
+      location: {
+        file: entry.location.file,
+        ...(entry.location.startLine !== undefined ? { startLine: entry.location.startLine } : {}),
+      },
+      addedAt: entry.addedAt,
+      reason: entry.reason,
+    })),
+    metrics: snapshot.metrics,
+  };
 }
 
 function allFindings(outcome: RunOutcome): readonly Finding[] {
@@ -85,13 +114,12 @@ export class BaselineManager {
     }
     try {
       const parsed: unknown = JSON.parse(await fs.readFile(path));
-      if (typeof parsed !== 'object' || parsed === null || !('schemaVersion' in parsed)) {
-        throw new BaselineParseError(`Malformed baseline file: ${path}`);
-      }
-      return parsed as BaselineSnapshot;
+      return normalizeSnapshot(BaselineSnapshotSchema.parse(parsed));
     } catch (error) {
-      if (error instanceof BaselineParseError) {
-        throw error;
+      if (error instanceof z.ZodError) {
+        throw new BaselineParseError(`Invalid baseline file: ${path}: ${zodErrorMessage(error)}`, {
+          cause: error,
+        });
       }
       throw new BaselineParseError(`Failed to parse baseline file: ${path}`, { cause: error });
     }
@@ -99,7 +127,9 @@ export class BaselineManager {
 
   static async save(path: string, snapshot: BaselineSnapshot, fs: FileSystem): Promise<void> {
     await fs.mkdir(dirname(path), { recursive: true });
-    await fs.writeFile(path, `${JSON.stringify(sortSnapshot(snapshot), null, 2)}\n`);
+    const tempPath = `${path}.tmp.${randomUUID()}`;
+    await fs.writeFile(tempPath, `${JSON.stringify(sortSnapshot(snapshot), null, 2)}\n`);
+    await fs.rename(tempPath, path);
   }
 
   static async createFromOutcome(

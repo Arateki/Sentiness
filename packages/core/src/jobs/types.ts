@@ -20,4 +20,5 @@ export interface SpawnOptions {
   readonly cwd: string;
   readonly tier: Tier;
   readonly env?: Readonly<Record<string, string>>;
+  readonly jobId?: string;
 }

@@ -1,6 +1,10 @@
 node_modules/
 dist/
-coverage/
+/coverage/
+/packages/core/coverage/
+/packages/check-sdk/coverage/
+/packages/_test-utils/coverage/
+/packages/checks/*/coverage/
 .sentiness/jobs/
 .sentiness/cache/
 .sentiness/pending-feedback.json

@@ -12,6 +12,7 @@ export type CommandDeps = {
   readonly clock: Clock;
   readonly git: GitProvider;
   readonly stdout: OutputWriter;
+  readonly cliPath?: string;
 };
 
 export type ParsedArgs = {

@@ -1,4 +1,4 @@
-import type { CheckId, Finding, Severity } from '@sentiness/check-sdk';
+import { type CheckId, compareSeverity, type Finding, type Severity } from '@sentiness/check-sdk';
 import type { MetricRegression } from '../baseline/diff-filter.js';
 import type { ResolvedConfig } from '../config/config.js';
 import type { RunOutcome } from '../runner/runner.js';
@@ -54,8 +54,15 @@ function truncateFindings(
   if (findings.length <= maxFindings) {
     return { findings };
   }
+  const sorted = [...findings].sort((left, right) => {
+    const severity = compareSeverity(left.severity, right.severity);
+    if (severity !== 0) {
+      return severity;
+    }
+    return left.location.file.localeCompare(right.location.file);
+  });
   return {
-    findings: findings.slice(0, maxFindings),
+    findings: sorted.slice(0, maxFindings),
     truncated: { total: findings.length, shown: maxFindings },
   };
 }
@@ -165,6 +172,9 @@ export function buildReport(
 }
 
 export function exitCodeFor(report: Report): 0 | 1 | 2 | 3 {
+  if (report.summary.status === 'error') {
+    return 3;
+  }
   if (!report.summary.blocking) {
     return 0;
   }

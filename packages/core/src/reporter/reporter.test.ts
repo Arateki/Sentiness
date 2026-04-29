@@ -178,6 +178,50 @@ describe('reporter', () => {
     expect(report.checks[0]?.truncated).toEqual({ total: 60, shown: 50 });
   });
 
+  it('keeps highest severity findings when truncating', () => {
+    const warnings = Array.from({ length: 60 }).map((_, i) => ({
+      id: `fake:warn${i}`,
+      checkId,
+      ruleId: asRuleId('warning'),
+      severity: 'warning' as const,
+      message: 'Warning',
+      location: { file: `src/warn-${i}.ts` },
+      fingerprint: i.toString().padStart(64, '0'),
+    }));
+    const errors = Array.from({ length: 5 }).map((_, i) => ({
+      id: `fake:error${i}`,
+      checkId,
+      ruleId: asRuleId('error'),
+      severity: 'error' as const,
+      message: 'Fix this',
+      location: { file: `src/error-${i}.ts` },
+      fingerprint: (i + 100).toString().padStart(64, '0'),
+    }));
+
+    const result: CheckResult = {
+      status: 'violations',
+      durationMs: 2,
+      findings: [...warnings, ...errors],
+    };
+    const outcome = { ...baseOutcome, results: new Map([[checkId, result]]) };
+
+    const report = buildReport(
+      {
+        outcome,
+        baselineApplied: false,
+        baselinePath: null,
+        suppressedCount: 0,
+        metricRegressions: [],
+      },
+      DEFAULT_CONFIG,
+      { compact: false, omitOk: false, maxFindingsPerCheck: 50 },
+    );
+
+    expect(
+      report.checks[0]?.findings.filter((finding) => finding.severity === 'error'),
+    ).toHaveLength(5);
+  });
+
   it('omits OK checks in compact mode', () => {
     const result: CheckResult = { status: 'ok', durationMs: 2, findings: [] };
     const outcome = { ...baseOutcome, results: new Map([[checkId, result]]) };
@@ -223,6 +267,7 @@ describe('reporter', () => {
     expect(report.summary.checksErrored).toBe(1);
     expect(report.summary.checksSkipped).toBe(1);
     expect(report.summary.status).toBe('error');
+    expect(exitCodeFor(report)).toBe(3);
   });
 
   it('throws error if result is missing in outcome', () => {

@@ -23,6 +23,7 @@ export async function main(argv: readonly string[] = process.argv): Promise<void
     clock: systemClock,
     git: createGitProvider(processRunner),
     stdout: { write: (text: string) => process.stdout.write(text) },
+    ...(argv[1] ? { cliPath: argv[1] } : {}),
   };
   const cli = cac('sentiness');
   registerCommands(cli, deps);
@@ -30,7 +31,8 @@ export async function main(argv: readonly string[] = process.argv): Promise<void
   cli.version('0.1.0');
 
   try {
-    cli.parse([...argv]);
+    cli.parse([...argv], { run: false });
+    await cli.runMatchedCommand();
   } catch (error) {
     deps.logger.error(error instanceof Error ? error.message : 'Unknown CLI error');
     process.exitCode = 3;

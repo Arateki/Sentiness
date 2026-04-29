@@ -1,9 +1,9 @@
+import { randomUUID } from 'node:crypto';
 import { dirname, isAbsolute, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import type { Tier } from '@sentiness/check-sdk';
 import { BaselineManager } from '../../baseline/baseline.js';
 import { applyBaselineToOutcome } from '../../baseline/diff-filter.js';
-import { loadConfig } from '../../config/config.js';
+import { loadConfig, type ResolvedConfig } from '../../config/config.js';
 import { JobSpawner } from '../../jobs/spawner.js';
 import { PendingQueue } from '../../pending/pending.js';
 import { CheckRegistry } from '../../registry/registry.js';
@@ -33,39 +33,53 @@ function resolvePath(cwd: string, path: string): string {
   return isAbsolute(path) ? path : join(cwd, path);
 }
 
+function tierForTrigger(config: ResolvedConfig, trigger: string | undefined): Tier | undefined {
+  if (!trigger) {
+    return undefined;
+  }
+  for (const tier of ['fast', 'standard', 'slow'] as const) {
+    if (config.tiers[tier].triggers.some((candidate) => candidate === trigger)) {
+      return tier;
+    }
+  }
+  return undefined;
+}
+
+function effectiveTier(
+  config: ResolvedConfig,
+  tier: Tier | undefined,
+  trigger: string | undefined,
+): Tier {
+  const triggerTier = tierForTrigger(config, trigger);
+  if (tier && triggerTier && tier !== triggerTier) {
+    throw new Error(`Trigger "${trigger}" belongs to "${triggerTier}", not "${tier}"`);
+  }
+  return tier ?? triggerTier ?? 'standard';
+}
+
 export async function checkCommand(args: ParsedArgs, deps: CommandDeps): Promise<number> {
   const config = await loadConfig(deps.cwd, deps.fs);
-  const tier = parseTier(args.tier) ?? 'standard'; // Default to standard if spawning background
+  const tier = parseTier(args.tier);
+  const trigger = optionalString(args.trigger);
 
   if (optionalBoolean(args.background)) {
     const jobsDir = resolvePath(deps.cwd, '.sentiness/jobs');
     const spawner = new JobSpawner(jobsDir, deps.fs, deps.clock);
-    const cliPath = fileURLToPath(import.meta.url).replace(
-      /\/src\/cli\/commands\/check\.ts$/,
-      '/dist/cli/index.js',
-    );
+    const cliPath = deps.cliPath ?? process.argv[1];
+    if (!cliPath) {
+      throw new Error('Unable to resolve Sentiness CLI entrypoint for background job');
+    }
+    const jobId = randomUUID();
+    const resultPath = join(jobsDir, jobId, 'result.json');
     const originalArgs = process.argv.slice(2).filter((arg) => arg !== '--background');
     const jobMeta = await spawner.spawn(
       process.execPath,
-      [
-        cliPath,
-        ...originalArgs,
-        `--output=${join(jobsDir, '<jobId>', 'result.json')}`,
-        '--job-id=<jobId>',
-      ],
+      [cliPath, ...originalArgs, `--output=${resultPath}`, `--job-id=${jobId}`],
       {
         cwd: deps.cwd,
-        tier,
+        tier: effectiveTier(config, tier, trigger),
+        jobId,
       },
-    );
-
-    // Patch the <jobId> placeholders in args
-    const actualArgs = jobMeta.args.map((arg) => arg.replace('<jobId>', jobMeta.jobId));
-    // Re-write meta.json since we changed args
-    const updatedMeta = { ...jobMeta, args: actualArgs };
-    await deps.fs.writeFile(
-      join(jobMeta.jobDir, 'meta.json'),
-      `${JSON.stringify(updatedMeta, null, 2)}\n`,
     );
 
     deps.stdout.write(`${JSON.stringify({ jobId: jobMeta.jobId }, null, 2)}\n`);
@@ -75,8 +89,7 @@ export async function checkCommand(args: ParsedArgs, deps: CommandDeps): Promise
   const registry = await CheckRegistry.fromConfig(config, deps.cwd);
   const baseRef = optionalString(args.base);
   const diffOnly = optionalBoolean(args.diff);
-  const trigger = optionalString(args.trigger);
-  const jobId = optionalString(args['job-id']);
+  const jobId = optionalString(args['job-id']) ?? optionalString(args.jobId);
 
   let exitCode = 0;
   let reportText = '';
@@ -148,7 +161,7 @@ export async function checkCommand(args: ParsedArgs, deps: CommandDeps): Promise
         const reportPath = optionalString(args.output) ?? join(jobsDir, jobId, 'result.json');
         await pendingQueue.enqueue({
           jobId,
-          tier,
+          tier: outcome.context.tier,
           summary: `Background check finished with ${report.summary.totals.error} errors and ${report.summary.totals.warning} warnings.`,
           reportPath,
         });

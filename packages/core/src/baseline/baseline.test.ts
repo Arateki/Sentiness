@@ -34,6 +34,21 @@ describe('baseline', () => {
       );
     });
 
+    it('throws BaselineParseError on malformed baseline shape', async () => {
+      const fs = new InMemoryFileSystem({
+        '/project/baseline.json': JSON.stringify({
+          schemaVersion: '1.0',
+          createdAt: '2024',
+          createdAtCommit: 'sha',
+          suppressed: 'oops',
+          metrics: {},
+        }),
+      });
+      await expect(BaselineManager.load('/project/baseline.json', fs)).rejects.toThrow(
+        BaselineParseError,
+      );
+    });
+
     it('loads valid baseline', async () => {
       const snapshot: BaselineSnapshot = {
         schemaVersion: '1.0',

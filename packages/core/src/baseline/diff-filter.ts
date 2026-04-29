@@ -97,6 +97,16 @@ function resultWithFindings(result: CheckResult, findings: readonly Finding[]): 
   return { ...result, status, findings };
 }
 
+function collectCurrentMetrics(outcome: RunOutcome): CheckMetrics {
+  const metrics: Record<string, number | string | boolean> = {};
+  for (const [checkId, result] of outcome.results) {
+    for (const [name, value] of Object.entries(result.metrics ?? {})) {
+      metrics[`${checkId}.${name}`] = value;
+    }
+  }
+  return metrics;
+}
+
 export function applyBaselineToOutcome(
   outcome: RunOutcome,
   baseline: BaselineSnapshot | undefined,
@@ -120,6 +130,8 @@ export function applyBaselineToOutcome(
     baselineApplied: baseline !== undefined,
     baselinePath: options.baselinePath,
     suppressedCount,
-    metricRegressions: [],
+    metricRegressions: baseline
+      ? compareMetrics(collectCurrentMetrics(outcome), baseline.metrics)
+      : [],
   };
 }
