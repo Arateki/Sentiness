@@ -83,6 +83,9 @@ importers:
         specifier: latest
         version: 4.3.6
     devDependencies:
+      '@sentiness/_test-utils':
+        specifier: workspace:*
+        version: link:../_test-utils
       '@types/node':
         specifier: latest
         version: 25.6.0
