@@ -144,10 +144,8 @@ The final `sentiness check` report returned `summary.status: "ok"` with no findi
 
 ### Baseline gaps
 
-- Baseline APIs exist, but there is no CLI workflow to create, update, accept, or prune baselines.
-- Metric baseline comparison is only partially modeled. `compareMetrics()` exists, but `applyBaselineToOutcome()` currently returns no metric regressions.
-- Baseline file validation is shallow; malformed objects with `schemaVersion` can still be accepted structurally.
-- Baseline saves are not yet atomic.
+- Baseline saves are atomic (TODO).
+- Deeper baseline JSON validation and property-based regression tests (TODO).
 
 ### Diff gaps
 
@@ -232,6 +230,23 @@ Missing check packages:
    - Add public README usage docs.
    - Add CI examples.
    - Confirm package export/bin behavior from a packed or linked install.
+
+## How to resume safely
+
+Before starting any next task:
+
+```sh
+pnpm install
+pnpm typecheck
+pnpm test
+pnpm lint
+pnpm build
+pnpm sentiness doctor
+pnpm sentiness check --tier=fast --compact
+```
+
+When adding a new feature, keep the same vertical-slice rule: the feature is not done until it is wired through the CLI or a documented public API, covered by focused tests, and validated by the commands above.
+nked install.
 
 ## How to resume safely
 

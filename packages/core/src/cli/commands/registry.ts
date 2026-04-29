@@ -1,4 +1,10 @@
 import type { CAC } from 'cac';
+import {
+  baselineAcceptCommand,
+  baselineInitCommand,
+  baselinePruneCommand,
+  baselineUpdateCommand,
+} from './baseline.js';
 import { checkCommand } from './check.js';
 import { doctorCommand } from './doctor.js';
 import type { CommandDeps, ParsedArgs } from './types.js';
@@ -29,4 +35,34 @@ export function registerCommands(cli: CAC, deps: CommandDeps): void {
     .action(wrap(checkCommand, deps));
 
   cli.command('doctor', 'Diagnose configured checks').action(wrap(doctorCommand, deps));
+
+  const baselineCmd = cli.command(
+    'baseline <action>',
+    'Manage the baseline file (init, update, accept, prune)',
+  );
+
+  baselineCmd.action(async (action, args) => {
+    switch (action) {
+      case 'init':
+        await wrap(baselineInitCommand, deps)(args);
+        break;
+      case 'update':
+        await wrap(baselineUpdateCommand, deps)(args);
+        break;
+      case 'accept':
+        await wrap(baselineAcceptCommand, deps)(args);
+        break;
+      case 'prune':
+        await wrap(baselinePruneCommand, deps)(args);
+        break;
+      default:
+        deps.logger.error(`Unknown baseline action: ${action}`);
+        process.exitCode = 1;
+    }
+  });
+
+  baselineCmd
+    .option('--metric <name>', 'Only update the specified metric (update action)')
+    .option('--fingerprint <sha256>', 'The finding fingerprint to accept (accept action)')
+    .option('--reason <text>', 'Reason for accepting the finding (accept action)');
 }
