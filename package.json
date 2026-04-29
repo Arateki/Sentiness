@@ -17,6 +17,9 @@
   "devDependencies": {
     "@biomejs/biome": "latest",
     "@sentiness/check-biome": "workspace:*",
+    "@sentiness/check-coverage": "workspace:*",
+    "@sentiness/check-knip": "workspace:*",
+    "@sentiness/check-stryker": "workspace:*",
     "@types/node": "latest",
     "@vitest/coverage-v8": "latest",
     "fast-check": "latest",

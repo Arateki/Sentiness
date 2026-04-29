@@ -19,7 +19,7 @@ describe('package-metadata', () => {
     const metadata = await detectPackageMetadata('/project', fs);
     expect(metadata.packageManager).toBe('yarn');
     expect(metadata.lockfiles).toHaveLength(1);
-    expect(metadata.lockfiles[0]!.kind).toBe('yarn-lock');
+    expect(metadata.lockfiles[0]?.kind).toBe('yarn-lock');
   });
 
   it('detects packageManager from packageManager field if no known lockfile', async () => {

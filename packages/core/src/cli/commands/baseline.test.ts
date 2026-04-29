@@ -1,9 +1,17 @@
+import {
+  FixedClock,
+  InMemoryFileSystem,
+  InMemoryGitProvider,
+  SilentLogger,
+} from '@sentiness/_test-utils';
 import { describe, expect, it, vi } from 'vitest';
-import { InMemoryFileSystem, InMemoryGitProvider, FixedClock, SilentLogger } from '@sentiness/_test-utils';
-import { baselineInitCommand, baselineUpdateCommand, baselineAcceptCommand, baselinePruneCommand } from './baseline.js';
-import type { CommandDeps, ParsedArgs } from './types.js';
 import { DEFAULT_CONFIG } from '../../config/config.js';
-import { asCheckId } from '@sentiness/check-sdk';
+import {
+  baselineAcceptCommand,
+  baselineInitCommand,
+  baselinePruneCommand,
+  baselineUpdateCommand,
+} from './baseline.js';
 
 // Create a basic outcome string to act as baseline.json
 const emptyBaseline = JSON.stringify({
@@ -11,13 +19,13 @@ const emptyBaseline = JSON.stringify({
   createdAt: '2024-01-01T00:00:00.000Z',
   createdAtCommit: 'sha',
   suppressed: [],
-  metrics: { 'fake.score': { value: 50, direction: 'higher-is-better' } }
+  metrics: { 'fake.score': { value: 50, direction: 'higher-is-better' } },
 });
 
 describe('baseline commands', () => {
   const setupDeps = () => {
     const fs = new InMemoryFileSystem({
-      '/project/sentiness.config.json': JSON.stringify(DEFAULT_CONFIG)
+      '/project/sentiness.config.json': JSON.stringify(DEFAULT_CONFIG),
     });
     return {
       cwd: '/project',
@@ -25,8 +33,8 @@ describe('baseline commands', () => {
       git: new InMemoryGitProvider(),
       clock: new FixedClock(0),
       logger: new SilentLogger(),
-      processRunner: {} as any,
-      stdout: { write: vi.fn() }
+      processRunner: {} as unknown as import('@sentiness/check-sdk').ProcessRunner,
+      stdout: { write: vi.fn() },
     };
   };
 
@@ -67,7 +75,7 @@ describe('baseline commands', () => {
       const deps = setupDeps();
       await deps.fs.mkdir('/project/.sentiness', { recursive: true });
       await deps.fs.writeFile('/project/.sentiness/baseline.json', emptyBaseline);
-      
+
       expect(await baselineAcceptCommand({ fingerprint: 'x' }, deps)).toBe(1);
       expect(await baselineAcceptCommand({ reason: 'r' }, deps)).toBe(1);
     });
@@ -76,8 +84,11 @@ describe('baseline commands', () => {
       const deps = setupDeps();
       await deps.fs.mkdir('/project/.sentiness', { recursive: true });
       await deps.fs.writeFile('/project/.sentiness/baseline.json', emptyBaseline);
-      
-      const exitCode = await baselineAcceptCommand({ fingerprint: 'non-existent', reason: 'r' }, deps);
+
+      const exitCode = await baselineAcceptCommand(
+        { fingerprint: 'non-existent', reason: 'r' },
+        deps,
+      );
       expect(exitCode).toBe(1);
     });
 
@@ -85,16 +96,16 @@ describe('baseline commands', () => {
       const deps = setupDeps();
       await deps.fs.mkdir('/project/.sentiness', { recursive: true });
       await deps.fs.writeFile('/project/.sentiness/baseline.json', emptyBaseline);
-      
+
       // Inject the finding into the registry synthetic failures to ensure it appears in the outcome
       const config = { ...DEFAULT_CONFIG, checks: { 'invalid@@': { enabled: true } } };
       await deps.fs.writeFile('/project/sentiness.config.json', JSON.stringify(config));
-      
+
       // The synthetic load failure will generate a finding with fingerprint '000...000'
       const fp = '0'.repeat(64);
       const exitCode = await baselineAcceptCommand({ fingerprint: fp, reason: 'accepted' }, deps);
       expect(exitCode).toBe(0);
-      
+
       // Also test a failure inside BaselineManager.accept (like empty reason passing through somehow)
       // Actually we already test that in baseline unit tests, but we can verify exit code 1
       const exitCodeErr = await baselineAcceptCommand({ fingerprint: fp, reason: '   ' }, deps);

@@ -1,0 +1,124 @@
+import { isAbsolute, join } from 'node:path';
+import {
+  asCheckId,
+  asRuleId,
+  type Check,
+  type CheckContext,
+  computeFingerprint,
+  type Finding,
+} from '@sentiness/check-sdk';
+import { type NormalizedKnipIssue, normalizeKnipOutput } from './normalize.js';
+
+const checkId = asCheckId('knip');
+
+type FileCache = Map<string, readonly string[]>;
+
+async function lineContent(
+  ctx: CheckContext,
+  cache: FileCache,
+  file: string,
+  line: number | undefined,
+): Promise<string> {
+  if (!line) {
+    return '';
+  }
+  const path = isAbsolute(file) ? file : join(ctx.cwd, file);
+  if (!cache.has(path)) {
+    try {
+      const content = await ctx.fs.readFile(path);
+      cache.set(path, content.split(/\r?\n/));
+    } catch {
+      cache.set(path, []);
+    }
+  }
+  const lines = cache.get(path) ?? [];
+  return lines[line - 1] ?? '';
+}
+
+async function toFinding(
+  ctx: CheckContext,
+  cache: FileCache,
+  issue: NormalizedKnipIssue,
+): Promise<Finding> {
+  const ruleId = asRuleId(issue.ruleId);
+  const content = await lineContent(ctx, cache, issue.file, issue.line);
+
+  return {
+    id: `knip:${issue.ruleId}:${issue.name ?? 'unknown'}`,
+    checkId,
+    ruleId,
+    severity: issue.severity,
+    message: issue.message,
+    location: {
+      file: issue.file,
+      ...(issue.line ? { startLine: issue.line } : {}),
+      ...(issue.column ? { startColumn: issue.column } : {}),
+    },
+    fingerprint: computeFingerprint({
+      checkId,
+      ruleId,
+      relativeFilePath: issue.file,
+      lineContent: content,
+      extraDiscriminator: issue.name ?? '',
+    }),
+  };
+}
+
+export const knipCheck: Check = {
+  id: checkId,
+  category: 'architecture',
+  defaultTier: 'standard',
+  async detect(ctx) {
+    // Knip is typically installed locally. We check if `knip` is available via npx/pnpm exec
+    const result = await ctx.process.execFile('knip', ['--version'], {
+      cwd: ctx.cwd,
+      signal: ctx.signal,
+    });
+    if (result.exitCode !== 0) {
+      return { available: false, reason: result.stderr || 'knip not found' };
+    }
+    return { available: true, version: result.stdout.trim() };
+  },
+  async run(ctx) {
+    if (ctx.diffOnly && ctx.changedFiles.length === 0) {
+      return { status: 'ok', findings: [], durationMs: 0 };
+    }
+
+    // Knip doesn't easily support linting *only* specific files because it's a whole-project analysis tool.
+    // We run it on the whole project and filter findings by changed files if diffOnly is true.
+    const result = await ctx.process.execFile('knip', ['--reporter', 'json'], {
+      cwd: ctx.cwd,
+      signal: ctx.signal,
+    });
+
+    let parsed: unknown;
+    try {
+      parsed = result.stdout.trim().length > 0 ? JSON.parse(result.stdout) : {};
+    } catch (error) {
+      return {
+        status: 'error',
+        findings: [],
+        durationMs: 0,
+        errorMessage: error instanceof Error ? error.message : 'failed to parse knip JSON',
+      };
+    }
+
+    const cache: FileCache = new Map();
+    let findings = await Promise.all(
+      normalizeKnipOutput(parsed).map((issue) => toFinding(ctx, cache, issue)),
+    );
+
+    if (ctx.diffOnly) {
+      const changedSet = new Set(ctx.changedFiles);
+      findings = findings.filter(
+        (f) => changedSet.has(f.location.file) || f.location.file === 'package.json',
+      );
+    }
+
+    return {
+      status: findings.length > 0 ? 'violations' : 'ok',
+      findings,
+      durationMs: 0,
+    };
+  },
+};

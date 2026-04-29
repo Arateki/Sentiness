@@ -63,7 +63,7 @@ describe('reporter', () => {
 
     expect(report.summary.blocking).toBe(true);
     expect(exitCodeFor(report)).toBe(1);
-    expect(report.checks[0]!.findings[0]!.snippet).toBe('const x = 1;');
+    expect(report.checks[0]?.findings[0]?.snippet).toBe('const x = 1;');
   });
 
   it('handles warnings without warningsAreErrors', () => {
@@ -174,8 +174,8 @@ describe('reporter', () => {
       { compact: false, omitOk: false, maxFindingsPerCheck: 50 },
     );
 
-    expect(report.checks[0]!.findings.length).toBe(50);
-    expect(report.checks[0]!.truncated).toEqual({ total: 60, shown: 50 });
+    expect(report.checks[0]?.findings.length).toBe(50);
+    expect(report.checks[0]?.truncated).toEqual({ total: 60, shown: 50 });
   });
 
   it('omits OK checks in compact mode', () => {

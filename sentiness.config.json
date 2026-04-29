@@ -4,6 +4,21 @@
     "biome": {
       "enabled": true,
       "tier": "fast"
+    },
+    "knip": {
+      "enabled": true,
+      "tier": "standard"
+    },
+    "coverage": {
+      "enabled": true,
+      "tier": "slow",
+      "thresholds": {
+        "lineCoverage": 85
+      }
+    },
+    "stryker": {
+      "enabled": true,
+      "tier": "slow"
     }
   },
   "agents": ["codex"]

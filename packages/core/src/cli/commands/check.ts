@@ -1,4 +1,4 @@
-import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Tier } from '@sentiness/check-sdk';
 import { BaselineManager } from '../../baseline/baseline.js';

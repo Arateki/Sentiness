@@ -1,8 +1,8 @@
-import { dirname, isAbsolute, join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { detectPackageMetadata } from '../../package-metadata/package-metadata.js';
+import { Prompter } from '../wizard/prompts.js';
 import { baselineInitCommand } from './baseline.js';
 import type { CommandDeps, ParsedArgs } from './types.js';
-import { Prompter } from '../wizard/prompts.js';
 
 function resolvePath(cwd: string, path: string): string {
   return isAbsolute(path) ? path : join(cwd, path);
@@ -16,7 +16,10 @@ export async function initCommand(args: ParsedArgs, deps: CommandDeps): Promise<
 
     const configPath = resolvePath(deps.cwd, 'sentiness.config.json');
     if (await deps.fs.exists(configPath)) {
-      const proceed = await prompter.confirm('sentiness.config.json already exists. Do you want to overwrite it?', false);
+      const proceed = await prompter.confirm(
+        'sentiness.config.json already exists. Do you want to overwrite it?',
+        false,
+      );
       if (!proceed) {
         deps.logger.info('Init aborted.');
         return 0;
@@ -28,7 +31,7 @@ export async function initCommand(args: ParsedArgs, deps: CommandDeps): Promise<
     const hasJest = 'jest' in metadata.devDependencies || 'jest' in metadata.dependencies;
     const hasTs = 'typescript' in metadata.devDependencies || 'typescript' in metadata.dependencies;
 
-    const checks: Record<string, any> = {};
+    const checks: Record<string, unknown> = {};
 
     deps.logger.info(`Detected Package Manager: ${metadata.packageManager}`);
     deps.logger.info(`Detected TypeScript: ${hasTs ? 'yes' : 'no'}`);
@@ -63,7 +66,8 @@ export async function initCommand(args: ParsedArgs, deps: CommandDeps): Promise<
 
     // Update .gitignore
     const gitignorePath = resolvePath(deps.cwd, '.gitignore');
-    const ignoreEntries = '\n# Sentiness\n.sentiness/jobs/\n.sentiness/cache/\n.sentiness/pending-feedback.json\n.sentiness/pending-feedback.json.lock/\n';
+    const ignoreEntries =
+      '\n# Sentiness\n.sentiness/jobs/\n.sentiness/cache/\n.sentiness/pending-feedback.json\n.sentiness/pending-feedback.json.lock/\n';
     if (await deps.fs.exists(gitignorePath)) {
       const current = await deps.fs.readFile(gitignorePath);
       if (!current.includes('.sentiness/jobs/')) {
@@ -77,9 +81,14 @@ export async function initCommand(args: ParsedArgs, deps: CommandDeps): Promise<
 
     // Soft dependency message for Phase 6
     deps.logger.info('\nNote: Agent adapters (Phase 6) are not yet built.');
-    deps.logger.info('Run `sentiness install-skill --agent=<name>` later when available to install AI instructions.');
+    deps.logger.info(
+      'Run `sentiness install-skill --agent=<name>` later when available to install AI instructions.',
+    );
 
-    const runBaseline = await prompter.confirm('\nCreate initial baseline now? (recommended for existing projects)', true);
+    const runBaseline = await prompter.confirm(
+      '\nCreate initial baseline now? (recommended for existing projects)',
+      true,
+    );
     if (runBaseline) {
       deps.logger.info('Running baseline init...');
       await baselineInitCommand(args, deps);

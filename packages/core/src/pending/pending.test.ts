@@ -111,7 +111,7 @@ describe('PendingQueue', () => {
     await queue.enqueue({ jobId: 'j', tier: 'slow', summary: 's', reportPath: 'p' });
 
     // Mock rm to throw
-    const originalRm = fs.rm.bind(fs);
+    const _originalRm = fs.rm.bind(fs);
     fs.rm = async () => {
       throw new Error('Fake rm error');
     };

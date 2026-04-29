@@ -1,5 +1,10 @@
+import {
+  FixedClock,
+  InMemoryFileSystem,
+  InMemoryGitProvider,
+  SilentLogger,
+} from '@sentiness/_test-utils';
 import { describe, expect, it, vi } from 'vitest';
-import { InMemoryFileSystem, SilentLogger, FixedClock, InMemoryGitProvider } from '@sentiness/_test-utils';
 import { initCommand } from './init.js';
 import type { CommandDeps, ParsedArgs } from './types.js';
 
@@ -10,7 +15,7 @@ vi.mock('../wizard/prompts.js', () => {
     Prompter: class {
       confirm = mockConfirm;
       close = vi.fn();
-    }
+    },
   };
 });
 
@@ -18,8 +23,8 @@ describe('initCommand', () => {
   it('initializes a new project successfully', async () => {
     const fs = new InMemoryFileSystem({
       '/project/package.json': JSON.stringify({
-        devDependencies: { vitest: '^1.0.0', typescript: '^5.0.0' }
-      })
+        devDependencies: { vitest: '^1.0.0', typescript: '^5.0.0' },
+      }),
     });
     const logger = new SilentLogger();
     const deps: CommandDeps = {
@@ -28,10 +33,10 @@ describe('initCommand', () => {
       logger,
       clock: new FixedClock(0),
       git: new InMemoryGitProvider(),
-      processRunner: {} as any,
-      stdout: { write: vi.fn() }
+      processRunner: {} as unknown as import('@sentiness/check-sdk').ProcessRunner,
+      stdout: { write: vi.fn() },
     };
-    
+
     const args: ParsedArgs = {};
     mockConfirm.mockResolvedValue(true);
 
@@ -47,7 +52,7 @@ describe('initCommand', () => {
 
   it('aborts if config exists and user says no', async () => {
     const fs = new InMemoryFileSystem({
-      '/project/sentiness.config.json': '{}'
+      '/project/sentiness.config.json': '{}',
     });
     const logger = new SilentLogger();
     const deps: CommandDeps = {
@@ -56,10 +61,10 @@ describe('initCommand', () => {
       logger,
       clock: new FixedClock(0),
       git: new InMemoryGitProvider(),
-      processRunner: {} as any,
-      stdout: { write: vi.fn() }
+      processRunner: {} as unknown as import('@sentiness/check-sdk').ProcessRunner,
+      stdout: { write: vi.fn() },
     };
-    
+
     mockConfirm.mockResolvedValueOnce(false); // Do you want to overwrite? -> false
 
     const exitCode = await initCommand({}, deps);
