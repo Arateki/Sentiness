@@ -7,6 +7,7 @@ import {
 } from './baseline.js';
 import { checkCommand } from './check.js';
 import { doctorCommand } from './doctor.js';
+import { initCommand } from './init.js';
 import { pendingCommand } from './pending.js';
 import { statusCommand } from './status.js';
 import type { CommandDeps, ParsedArgs } from './types.js';
@@ -26,6 +27,8 @@ function wrap(handler: CommandHandler, deps: CommandDeps): (args: ParsedArgs) =>
 }
 
 export function registerCommands(cli: CAC, deps: CommandDeps): void {
+  cli.command('init', 'Initialize Sentiness in the current repository').action(wrap(initCommand, deps));
+
   cli
     .command('check', 'Run configured quality checks')
     .option('--tier <tier>', 'fast, standard, or slow')

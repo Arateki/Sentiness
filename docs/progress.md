@@ -26,12 +26,12 @@ The implementation should progress in usable slices, not by completing the whole
 4. **Phase D - CLI onboarding and local automation**
    - Goal: make Sentiness easy to add to a target repo.
    - Scope: `sentiness init`, `sentiness install-hooks`, richer `doctor`, config generation, hook generation, and package/tool detection.
-   - Status: **partial**; `check` and a minimal `doctor` exist.
+   - Status: **partial**; `check`, `init`, and a minimal `doctor` exist.
 
-5. **Phase E - Check package expansion**
-   - Goal: add the remaining check packages behind the same SDK contract.
-   - Scope: dependency-cruiser, knip, coverage, stryker, osv-scanner, lockfile-lint, deps-diff, jscpd, semgrep.
-   - Status: **partial**; only Biome exists.
+5. **Phase E - Essential check packages**
+   - Goal: add the most critical check packages to enable agent integration testing.
+   - Scope: knip, coverage, and stryker (or just the minimal set requested for next steps).
+   - Status: **partial**; Biome exists.
 
 6. **Phase F - Agent adapters**
    - Goal: generate managed instruction sections for Claude Code, Codex, and Gemini.
@@ -42,6 +42,11 @@ The implementation should progress in usable slices, not by completing the whole
    - Goal: harden behavior across realistic projects and document public usage.
    - Scope: E2E tests against `examples/demo-project`, public README/docs, complete JSON schema artifact, CI examples, and release packaging.
    - Status: **not started**, except for the demo project scaffold.
+
+8. **Phase H - Additional check packages (Deferred)**
+   - Goal: add the remaining heavier check packages.
+   - Scope: dependency-cruiser, osv-scanner, lockfile-lint, deps-diff, jscpd, semgrep.
+   - Status: **not started**.
 
 ## What is already implemented
 
