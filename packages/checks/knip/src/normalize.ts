@@ -75,13 +75,18 @@ export type NormalizedKnipIssue = {
   readonly column?: number;
 };
 
+type MaybeKnipIssue = NormalizedKnipIssue | null;
+
 function normalizeIssue(
   ruleId: string,
   severity: 'error' | 'warning' | 'info',
   issue: z.infer<typeof KnipFileIssueSchema>,
   defaultFile: string,
-): NormalizedKnipIssue {
+): MaybeKnipIssue {
   if (typeof issue === 'string') {
+    if (ruleId !== 'unused-files' && defaultFile === 'unknown') {
+      return null;
+    }
     return {
       ruleId,
       severity,
@@ -92,6 +97,9 @@ function normalizeIssue(
   }
 
   const file = issue.file ?? defaultFile;
+  if (file === 'unknown') {
+    return null;
+  }
   const name = issue.name ?? 'unknown';
 
   return {
@@ -107,7 +115,7 @@ function normalizeIssue(
 
 export function normalizeKnipOutput(output: unknown): NormalizedKnipIssue[] {
   const parsed = KnipOutputSchema.parse(output);
-  const issues: NormalizedKnipIssue[] = [];
+  const issues: MaybeKnipIssue[] = [];
 
   if (parsed.files) {
     issues.push(
@@ -177,5 +185,5 @@ export function normalizeKnipOutput(output: unknown): NormalizedKnipIssue[] {
     );
   }
 
-  return issues;
+  return issues.filter((issue): issue is NormalizedKnipIssue => issue !== null);
 }

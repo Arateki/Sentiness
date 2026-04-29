@@ -1,13 +1,13 @@
 import { isAbsolute, join } from 'node:path';
-import type { CheckId, CheckResult, Finding } from '@sentiness/check-sdk';
+import type { CheckId, CheckResult, Finding, Tier } from '@sentiness/check-sdk';
 import {
   BaselineManager,
   type BaselineSnapshot,
-  type MetricBaseline,
+  collectMetricBaselines,
 } from '../../baseline/baseline.js';
-import { loadConfig } from '../../config/config.js';
+import { loadConfig, type ResolvedConfig } from '../../config/config.js';
 import { CheckRegistry } from '../../registry/registry.js';
-import { type RunOutcome, runChecks } from '../../runner/runner.js';
+import { type RunInput, type RunOutcome, runChecks } from '../../runner/runner.js';
 import type { CommandDeps, ParsedArgs } from './types.js';
 
 function resolvePath(cwd: string, path: string): string {
@@ -18,60 +18,119 @@ function optionalString(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
+const allTiers = ['fast', 'standard', 'slow'] as const satisfies readonly Tier[];
+
+function runInput(config: ResolvedConfig, registry: CheckRegistry, deps: CommandDeps): RunInput {
+  return {
+    registry,
+    config,
+    cwd: deps.cwd,
+    fs: deps.fs,
+    process: deps.processRunner,
+    logger: deps.logger,
+    clock: deps.clock,
+    git: deps.git,
+  };
+}
+
+async function runTier(
+  config: ResolvedConfig,
+  registry: CheckRegistry,
+  deps: CommandDeps,
+  tier: Tier,
+): Promise<RunOutcome> {
+  return runChecks(runInput(config, registry, deps), { tier, diffOnly: false });
+}
+
+function mergeStatus(
+  left: CheckResult['status'],
+  right: CheckResult['status'],
+): CheckResult['status'] {
+  const rank: Readonly<Record<CheckResult['status'], number>> = {
+    error: 4,
+    violations: 3,
+    skipped: 2,
+    ok: 1,
+  };
+  return rank[right] > rank[left] ? right : left;
+}
+
+function mergeCheckResult(left: CheckResult, right: CheckResult): CheckResult {
+  const metrics =
+    left.metrics || right.metrics ? { ...(left.metrics ?? {}), ...(right.metrics ?? {}) } : null;
+  const errorMessage = left.errorMessage ?? right.errorMessage;
+  const skipReason = left.skipReason ?? right.skipReason;
+
+  return {
+    ...left,
+    status: mergeStatus(left.status, right.status),
+    findings: [...left.findings, ...right.findings],
+    durationMs: left.durationMs + right.durationMs,
+    ...(metrics ? { metrics } : {}),
+    ...(errorMessage ? { errorMessage } : {}),
+    ...(skipReason ? { skipReason } : {}),
+  };
+}
+
+function mergeOutcomes(left: RunOutcome, right: RunOutcome): RunOutcome {
+  const results: Map<CheckId, CheckResult> = new Map(left.results);
+  for (const [checkId, result] of right.results) {
+    const existing = results.get(checkId);
+    results.set(checkId, existing ? mergeCheckResult(existing, result) : result);
+  }
+
+  return {
+    ...left,
+    results,
+    checkMetadata: new Map([...left.checkMetadata, ...right.checkMetadata]),
+    completedAt: right.completedAt,
+    durationMs: left.durationMs + right.durationMs,
+  };
+}
+
+async function runAllTiers(
+  config: ResolvedConfig,
+  registry: CheckRegistry,
+  deps: CommandDeps,
+): Promise<RunOutcome> {
+  let mergedOutcome: RunOutcome | undefined;
+
+  for (const tier of allTiers) {
+    const outcome = await runTier(config, registry, deps, tier);
+    mergedOutcome = mergedOutcome ? mergeOutcomes(mergedOutcome, outcome) : outcome;
+  }
+
+  if (!mergedOutcome) {
+    throw new Error('No tiers configured for baseline run');
+  }
+  return mergedOutcome;
+}
+
+function allFindings(outcome: RunOutcome): readonly Finding[] {
+  return [...outcome.results.values()].flatMap((result) => result.findings);
+}
+
+async function findFindingByFingerprint(
+  config: ResolvedConfig,
+  registry: CheckRegistry,
+  deps: CommandDeps,
+  fingerprint: string,
+): Promise<Finding | undefined> {
+  for (const tier of allTiers) {
+    const outcome = await runTier(config, registry, deps, tier);
+    const match = allFindings(outcome).find((finding) => finding.fingerprint === fingerprint);
+    if (match) {
+      return match;
+    }
+  }
+  return undefined;
+}
+
 export async function baselineInitCommand(_args: ParsedArgs, deps: CommandDeps): Promise<number> {
   const config = await loadConfig(deps.cwd, deps.fs);
   const registry = await CheckRegistry.fromConfig(config, deps.cwd);
   const baselinePath = resolvePath(deps.cwd, config.baseline.path);
-
-  // According to spec: baseline init runs all enabled checks across all tiers
-  // with no baseline applied, then writes BaselineSnapshot from the resulting findings + metrics.
-  // "This can be implemented as one all-tiers helper or as three runChecks invocations merged into one RunOutcome."
-  // It's simpler to run a full check since runner currently takes a single tier,
-  // but if tier is not provided it defaults to 'standard'. We actually need to collect findings
-  // from all tiers.
-
-  // Let's run for all three tiers and merge the outcomes.
-  const tiers: Array<'fast' | 'standard' | 'slow'> = ['fast', 'standard', 'slow'];
-  let mergedOutcome: RunOutcome | null = null; // Will build a composite outcome
-
-  for (const tier of tiers) {
-    const outcome = await runChecks(
-      {
-        registry,
-        config,
-        cwd: deps.cwd,
-        fs: deps.fs,
-        process: deps.processRunner,
-        logger: deps.logger,
-        clock: deps.clock,
-        git: deps.git,
-      },
-      { tier, diffOnly: false },
-    );
-    if (!mergedOutcome) {
-      mergedOutcome = { ...outcome, results: new Map(outcome.results) };
-    } else {
-      const newResults = new Map<CheckId, CheckResult>(mergedOutcome.results);
-      for (const [checkId, result] of outcome.results) {
-        const existing = newResults.get(checkId);
-        if (!existing) {
-          newResults.set(checkId, result);
-        } else {
-          // Merge findings and metrics if the check ran multiple times (e.g. overriden in multiple tiers, which shouldn't happen by spec, but safe fallback)
-          newResults.set(checkId, {
-            ...existing,
-            findings: [...existing.findings, ...result.findings],
-            metrics: { ...(existing.metrics ?? {}), ...(result.metrics ?? {}) },
-          });
-        }
-      }
-      mergedOutcome = { ...mergedOutcome, results: newResults } as RunOutcome;
-    }
-  }
-
-  if (!mergedOutcome) {
-    return 1;
-  }
+  const mergedOutcome = await runAllTiers(config, registry, deps);
 
   const snapshot = await BaselineManager.createFromOutcome(mergedOutcome, deps.git, deps.cwd);
   await BaselineManager.save(baselinePath, snapshot, deps.fs);
@@ -94,34 +153,7 @@ export async function baselineUpdateCommand(args: ParsedArgs, deps: CommandDeps)
   const registry = await CheckRegistry.fromConfig(config, deps.cwd);
   const targetMetric = optionalString(args.metric);
 
-  // Re-run checks to gather current metrics. Since metrics can be from any tier, we run all.
-  const tiers: Array<'fast' | 'standard' | 'slow'> = ['fast', 'standard', 'slow'];
-  const currentMetrics: Record<string, MetricBaseline> = {};
-
-  for (const tier of tiers) {
-    const outcome = await runChecks(
-      {
-        registry,
-        config,
-        cwd: deps.cwd,
-        fs: deps.fs,
-        process: deps.processRunner,
-        logger: deps.logger,
-        clock: deps.clock,
-        git: deps.git,
-      },
-      { tier, diffOnly: false },
-    );
-
-    // Collect metrics from outcome
-    for (const [checkId, result] of outcome.results) {
-      for (const [name, value] of Object.entries(result.metrics ?? {})) {
-        if (typeof value === 'number') {
-          currentMetrics[`${checkId}.${name}`] = { value, direction: 'higher-is-better' }; // default direction
-        }
-      }
-    }
-  }
+  const currentMetrics = collectMetricBaselines(await runAllTiers(config, registry, deps));
 
   const updatedMetrics = { ...existing.metrics };
   let updatedCount = 0;
@@ -187,34 +219,7 @@ export async function baselineAcceptCommand(args: ParsedArgs, deps: CommandDeps)
   }
 
   const registry = await CheckRegistry.fromConfig(config, deps.cwd);
-
-  // Need to find the finding. Run all checks.
-  const tiers: Array<'fast' | 'standard' | 'slow'> = ['fast', 'standard', 'slow'];
-  let targetFinding: Finding | null = null;
-
-  for (const tier of tiers) {
-    if (targetFinding) break;
-    const outcome = await runChecks(
-      {
-        registry,
-        config,
-        cwd: deps.cwd,
-        fs: deps.fs,
-        process: deps.processRunner,
-        logger: deps.logger,
-        clock: deps.clock,
-        git: deps.git,
-      },
-      { tier, diffOnly: false },
-    );
-    for (const result of outcome.results.values()) {
-      const match = result.findings.find((f) => f.fingerprint === fingerprint);
-      if (match) {
-        targetFinding = match;
-        break;
-      }
-    }
-  }
+  const targetFinding = await findFindingByFingerprint(config, registry, deps, fingerprint);
 
   if (!targetFinding) {
     deps.logger.error(`Finding with fingerprint ${fingerprint} not found in current run.`);
@@ -222,7 +227,7 @@ export async function baselineAcceptCommand(args: ParsedArgs, deps: CommandDeps)
   }
 
   try {
-    const updatedSnapshot = BaselineManager.accept(existing, targetFinding, reason);
+    const updatedSnapshot = BaselineManager.accept(existing, targetFinding, reason, deps.clock);
     await BaselineManager.save(baselinePath, updatedSnapshot, deps.fs);
     deps.logger.info(`Accepted finding ${fingerprint} into baseline.`);
     return 0;
@@ -243,30 +248,9 @@ export async function baselinePruneCommand(_args: ParsedArgs, deps: CommandDeps)
 
   const registry = await CheckRegistry.fromConfig(config, deps.cwd);
 
-  // Gather all current fingerprints
-  const tiers: Array<'fast' | 'standard' | 'slow'> = ['fast', 'standard', 'slow'];
-  const currentFingerprints = new Set<string>();
-
-  for (const tier of tiers) {
-    const outcome = await runChecks(
-      {
-        registry,
-        config,
-        cwd: deps.cwd,
-        fs: deps.fs,
-        process: deps.processRunner,
-        logger: deps.logger,
-        clock: deps.clock,
-        git: deps.git,
-      },
-      { tier, diffOnly: false },
-    );
-    for (const result of outcome.results.values()) {
-      for (const finding of result.findings) {
-        currentFingerprints.add(finding.fingerprint);
-      }
-    }
-  }
+  const currentFingerprints = new Set(
+    allFindings(await runAllTiers(config, registry, deps)).map((finding) => finding.fingerprint),
+  );
 
   const updatedSnapshot = BaselineManager.prune(existing, currentFingerprints);
   await BaselineManager.save(baselinePath, updatedSnapshot, deps.fs);

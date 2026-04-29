@@ -27,7 +27,10 @@ async function lineContent(
     try {
       const content = await ctx.fs.readFile(path);
       cache.set(path, content.split(/\r?\n/));
-    } catch {
+    } catch (error) {
+      ctx.logger.debug(`Failed to read ${file} for Knip fingerprint context`, {
+        error: error instanceof Error ? error.message : String(error),
+      });
       cache.set(path, []);
     }
   }
@@ -44,7 +47,7 @@ async function toFinding(
   const content = await lineContent(ctx, cache, issue.file, issue.line);
 
   return {
-    id: `knip:${issue.ruleId}:${issue.name ?? 'unknown'}`,
+    id: `knip:${issue.ruleId}:${issue.file}:${issue.name ?? 'unknown'}`,
     checkId,
     ruleId,
     severity: issue.severity,

@@ -76,6 +76,7 @@ describe('runner', () => {
     expect(result).toBeDefined();
     expect(result?.status).toBe('error');
     expect(result?.findings[0]?.message).toContain('Failed to load @sentiness/check-missing');
+    expect(outcome.checkMetadata.get(asCheckId('missing'))?.category).toBe('platform');
   });
 
   it('handles checks throwing errors or skipping', async () => {

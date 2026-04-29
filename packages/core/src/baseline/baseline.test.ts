@@ -1,4 +1,4 @@
-import { InMemoryFileSystem, InMemoryGitProvider } from '@sentiness/_test-utils';
+import { FixedClock, InMemoryFileSystem, InMemoryGitProvider } from '@sentiness/_test-utils';
 import { asCheckId, asRuleId } from '@sentiness/check-sdk';
 import { describe, expect, it } from 'vitest';
 import type { RunOutcome } from '../runner/runner.js';
@@ -74,16 +74,16 @@ describe('baseline', () => {
         createdAtCommit: 'sha',
         suppressed: [
           {
-            checkId: 'b',
-            ruleId: 'b',
+            checkId: asCheckId('b'),
+            ruleId: asRuleId('b'),
             fingerprint: 'z',
             location: { file: 'a' },
             addedAt: '',
             reason: '',
           },
           {
-            checkId: 'a',
-            ruleId: 'a',
+            checkId: asCheckId('a'),
+            ruleId: asRuleId('a'),
             fingerprint: 'a',
             location: { file: 'a' },
             addedAt: '',
@@ -108,7 +108,12 @@ describe('baseline', () => {
         completedAt: '2024',
         durationMs: 100,
         context: {} as unknown as RunOutcome['context'],
-        checkMetadata: new Map(),
+        checkMetadata: new Map([
+          [
+            asCheckId('fake'),
+            { category: 'lint', metricSpecs: { score: { direction: 'lower-is-better' as const } } },
+          ],
+        ]),
         results: new Map([
           [
             asCheckId('fake'),
@@ -139,7 +144,7 @@ describe('baseline', () => {
       expect(snapshot.createdAtCommit).toBe('HEAD');
       expect(snapshot.suppressed).toHaveLength(1);
       expect(snapshot.suppressed[0]?.fingerprint).toBe('fp');
-      expect(snapshot.metrics['fake.score']).toEqual({ value: 100, direction: 'higher-is-better' });
+      expect(snapshot.metrics['fake.score']).toEqual({ value: 100, direction: 'lower-is-better' });
     });
   });
 
@@ -151,16 +156,16 @@ describe('baseline', () => {
         createdAtCommit: 'sha',
         suppressed: [
           {
-            checkId: 'a',
-            ruleId: 'a',
+            checkId: asCheckId('a'),
+            ruleId: asRuleId('a'),
             fingerprint: 'keep',
             location: { file: 'a' },
             addedAt: '',
             reason: '',
           },
           {
-            checkId: 'b',
-            ruleId: 'b',
+            checkId: asCheckId('b'),
+            ruleId: asRuleId('b'),
             fingerprint: 'drop',
             location: { file: 'a' },
             addedAt: '',
@@ -193,7 +198,9 @@ describe('baseline', () => {
         message: 'm',
         id: '1',
       } as unknown as import('@sentiness/check-sdk').Finding;
-      expect(() => BaselineManager.accept(snapshot, finding, '   ')).toThrow(BaselineAcceptError);
+      expect(() => BaselineManager.accept(snapshot, finding, '   ', new FixedClock(0))).toThrow(
+        BaselineAcceptError,
+      );
     });
 
     it('adds entry with reason', () => {
@@ -213,11 +220,12 @@ describe('baseline', () => {
         message: 'm',
         id: '1',
       } as unknown as import('@sentiness/check-sdk').Finding;
-      const updated = BaselineManager.accept(snapshot, finding, 'wontfix');
+      const updated = BaselineManager.accept(snapshot, finding, 'wontfix', new FixedClock(0));
       expect(updated.suppressed).toHaveLength(1);
       expect(updated.suppressed[0]?.fingerprint).toBe('new');
       expect(updated.suppressed[0]?.reason).toBe('wontfix');
       expect(updated.suppressed[0]?.location.startLine).toBe(1);
+      expect(updated.suppressed[0]?.addedAt).toBe('1970-01-01T00:00:00.000Z');
     });
   });
 });

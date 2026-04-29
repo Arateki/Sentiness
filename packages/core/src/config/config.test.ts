@@ -50,6 +50,7 @@ describe('config', () => {
   it('categoryFromString returns valid category or undefined', () => {
     expect(categoryFromString('lint')).toBe('lint');
     expect(categoryFromString('security')).toBe('security');
+    expect(categoryFromString('platform')).toBe('platform');
     expect(categoryFromString('invalid-category')).toBeUndefined();
   });
 

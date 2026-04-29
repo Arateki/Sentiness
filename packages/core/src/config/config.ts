@@ -226,6 +226,7 @@ export function categoryFromString(value: string): Category | undefined {
     'security',
     'duplication',
     'complexity',
+    'platform',
   ];
   return categories.includes(value as Category) ? (value as Category) : undefined;
 }

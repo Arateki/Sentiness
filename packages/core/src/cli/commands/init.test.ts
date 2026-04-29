@@ -45,6 +45,8 @@ describe('initCommand', () => {
 
     const configExists = await fs.exists('/project/sentiness.config.json');
     expect(configExists).toBe(true);
+    const config = JSON.parse(await fs.readFile('/project/sentiness.config.json'));
+    expect(Object.keys(config.checks)).toEqual(['biome', 'knip', 'coverage', 'stryker']);
 
     const gitignore = await fs.readFile('/project/.gitignore');
     expect(gitignore).toContain('.sentiness/jobs/');
@@ -72,5 +74,29 @@ describe('initCommand', () => {
 
     // It should not have created .gitignore since we aborted
     expect(await fs.exists('/project/.gitignore')).toBe(false);
+  });
+
+  it('does not duplicate Sentiness ignores covered by an existing .sentiness/ rule', async () => {
+    const fs = new InMemoryFileSystem({
+      '/project/package.json': JSON.stringify({}),
+      '/project/.gitignore': 'node_modules/\n.sentiness/\n',
+    });
+    const logger = new SilentLogger();
+    const deps: CommandDeps = {
+      cwd: '/project',
+      fs,
+      logger,
+      clock: new FixedClock(0),
+      git: new InMemoryGitProvider(),
+      processRunner: {} as unknown as import('@sentiness/check-sdk').ProcessRunner,
+      stdout: { write: vi.fn() },
+    };
+
+    mockConfirm.mockResolvedValue(false);
+
+    const exitCode = await initCommand({}, deps);
+
+    expect(exitCode).toBe(0);
+    expect(await fs.readFile('/project/.gitignore')).toBe('node_modules/\n.sentiness/\n');
   });
 });

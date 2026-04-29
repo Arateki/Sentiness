@@ -15,7 +15,7 @@ export async function statusCommand(args: ParsedArgs, deps: CommandDeps): Promis
   }
 
   const jobsDir = resolvePath(deps.cwd, '.sentiness/jobs');
-  const reader = new JobReader(jobsDir, deps.fs);
+  const reader = new JobReader(jobsDir, deps.fs, deps.logger);
   const meta = await reader.read(jobId);
 
   if (!meta) {

@@ -1,9 +1,10 @@
-import type { Logger } from '@sentiness/check-sdk';
+import type { Clock, Logger } from '@sentiness/check-sdk';
 
 export type LoggerOptions = {
   readonly level: 'debug' | 'info' | 'warn' | 'error';
   readonly stream: NodeJS.WritableStream;
   readonly format: 'pretty' | 'json';
+  readonly clock: Clock;
 };
 
 type LogLevel = LoggerOptions['level'];
@@ -53,10 +54,11 @@ class StreamLogger implements Logger {
       return;
     }
     const merged = mergeFields(this.context, fields);
+    const timestamp = this.options.clock.isoNow();
     const line =
       this.options.format === 'json'
-        ? JSON.stringify({ timestamp: new Date().toISOString(), level, message, ...merged })
-        : `${new Date().toISOString()} ${level.toUpperCase()} ${message}${
+        ? JSON.stringify({ timestamp, level, message, ...merged })
+        : `${timestamp} ${level.toUpperCase()} ${message}${
             Object.keys(merged).length > 0 ? ` ${JSON.stringify(merged)}` : ''
           }`;
     this.options.stream.write(`${line}\n`);

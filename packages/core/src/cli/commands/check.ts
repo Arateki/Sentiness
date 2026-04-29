@@ -89,6 +89,10 @@ export async function checkCommand(args: ParsedArgs, deps: CommandDeps): Promise
   const registry = await CheckRegistry.fromConfig(config, deps.cwd);
   const baseRef = optionalString(args.base);
   const diffOnly = optionalBoolean(args.diff);
+  const trend = optionalBoolean(args.trend);
+  if (diffOnly && trend) {
+    throw new Error('--diff and --trend cannot be used together');
+  }
   const jobId = optionalString(args['job-id']) ?? optionalString(args.jobId);
 
   let exitCode = 0;
@@ -110,6 +114,7 @@ export async function checkCommand(args: ParsedArgs, deps: CommandDeps): Promise
         ...(tier ? { tier } : {}),
         ...(trigger ? { trigger } : {}),
         diffOnly,
+        trend,
         ...(baseRef ? { baseRef } : {}),
       },
     );
@@ -157,6 +162,7 @@ export async function checkCommand(args: ParsedArgs, deps: CommandDeps): Promise
           resolvePath(deps.cwd, config.pending.path),
           deps.fs,
           deps.clock,
+          deps.logger,
         );
         const reportPath = optionalString(args.output) ?? join(jobsDir, jobId, 'result.json');
         await pendingQueue.enqueue({

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { dirname } from 'node:path';
-import type { Clock, FileSystem, Tier } from '@sentiness/check-sdk';
+import type { Clock, FileSystem, Logger, Tier } from '@sentiness/check-sdk';
+import { z } from 'zod';
 
 export interface PendingItem {
   readonly id: string;
@@ -11,6 +12,18 @@ export interface PendingItem {
   readonly reportPath: string;
   readonly acked: boolean;
 }
+
+const PendingItemSchema = z.object({
+  id: z.string().min(1),
+  jobId: z.string().min(1),
+  createdAt: z.string().min(1),
+  tier: z.enum(['fast', 'standard', 'slow']),
+  summary: z.string(),
+  reportPath: z.string().min(1),
+  acked: z.boolean(),
+});
+
+const PendingItemsSchema = z.array(PendingItemSchema);
 
 export class PendingQueueLockError extends Error {
   constructor(message: string) {
@@ -29,6 +42,7 @@ export class PendingQueue {
     private readonly path: string,
     private readonly fs: FileSystem,
     private readonly clock: Clock,
+    private readonly logger?: Logger,
   ) {
     const _dir = dirname(path);
     this.lockDir = `${path}.lock`;
@@ -65,8 +79,10 @@ export class PendingQueue {
   private async releaseLock(): Promise<void> {
     try {
       await this.fs.rm(this.lockDir, { recursive: true, force: true });
-    } catch {
-      // Ignore release errors
+    } catch (error) {
+      this.logger?.warn(`Failed to release pending queue lock at ${this.lockDir}`, {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -76,8 +92,11 @@ export class PendingQueue {
     }
     try {
       const content = await this.fs.readFile(this.path);
-      return JSON.parse(content) as readonly PendingItem[];
-    } catch {
+      return PendingItemsSchema.parse(JSON.parse(content));
+    } catch (error) {
+      this.logger?.error(`Failed to read pending feedback from ${this.path}`, {
+        error: error instanceof Error ? error.message : String(error),
+      });
       return [];
     }
   }

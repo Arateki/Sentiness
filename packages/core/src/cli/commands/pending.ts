@@ -10,7 +10,7 @@ function resolvePath(cwd: string, path: string): string {
 export async function pendingCommand(args: ParsedArgs, deps: CommandDeps): Promise<number> {
   const config = await loadConfig(deps.cwd, deps.fs);
   const pendingPath = resolvePath(deps.cwd, config.pending.path);
-  const queue = new PendingQueue(pendingPath, deps.fs, deps.clock);
+  const queue = new PendingQueue(pendingPath, deps.fs, deps.clock, deps.logger);
 
   // Command acts as 'pending' (list) or 'pending ack <id>' based on args._
   const positional = args._ ?? [];

@@ -37,15 +37,62 @@ const StrykerReportSchema = z.object({
 
 type StrykerReport = z.infer<typeof StrykerReportSchema>;
 
+const StrykerJsonConfigSchema = z
+  .object({
+    jsonReporter: z
+      .object({
+        fileName: z.string().optional(),
+      })
+      .optional(),
+  })
+  .catchall(z.unknown());
+
+function configuredReportPath(ctx: CheckContext): string | undefined {
+  const reportPath = ctx.checkConfig.reportPath;
+  return typeof reportPath === 'string' && reportPath.length > 0 ? reportPath : undefined;
+}
+
+async function reportPathFromJsonConfig(ctx: CheckContext): Promise<string | undefined> {
+  for (const candidate of ['stryker.conf.json', 'stryker.config.json']) {
+    const configPath = join(ctx.cwd, candidate);
+    if (!(await ctx.fs.exists(configPath))) {
+      continue;
+    }
+    try {
+      const parsed = StrykerJsonConfigSchema.parse(JSON.parse(await ctx.fs.readFile(configPath)));
+      const fileName = parsed.jsonReporter?.fileName;
+      if (fileName) {
+        return isAbsolute(fileName) ? fileName : join(ctx.cwd, fileName);
+      }
+    } catch (error) {
+      ctx.logger.warn(`Failed to parse ${candidate}`, {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  return undefined;
+}
+
+async function resolveReportPath(ctx: CheckContext): Promise<string> {
+  const configured = configuredReportPath(ctx);
+  if (configured) {
+    return isAbsolute(configured) ? configured : join(ctx.cwd, configured);
+  }
+  return (await reportPathFromJsonConfig(ctx)) ?? join(ctx.cwd, 'reports/mutation/mutation.json');
+}
+
 async function getReport(ctx: CheckContext): Promise<StrykerReport | undefined> {
-  const reportPath = join(ctx.cwd, 'reports/mutation/mutation.json');
+  const reportPath = await resolveReportPath(ctx);
   if (!(await ctx.fs.exists(reportPath))) {
     return undefined;
   }
   try {
     const content = await ctx.fs.readFile(reportPath);
     return StrykerReportSchema.parse(JSON.parse(content));
-  } catch {
+  } catch (error) {
+    ctx.logger.error(`Failed to parse Stryker report at ${reportPath}`, {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return undefined;
   }
 }
@@ -54,6 +101,12 @@ export const strykerCheck: Check = {
   id: checkId,
   category: 'test-quality',
   defaultTier: 'slow',
+  metricSpecs: {
+    mutationScore: {
+      direction: 'higher-is-better',
+      description: 'Killed mutants as percentage of total mutants',
+    },
+  },
   async detect(ctx) {
     const result = await ctx.process.execFile('stryker', ['--version'], {
       cwd: ctx.cwd,

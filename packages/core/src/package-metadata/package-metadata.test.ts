@@ -8,6 +8,7 @@ describe('package-metadata', () => {
     const metadata = await detectPackageMetadata('/project', fs);
     expect(metadata.packageJsonPath).toBeNull();
     expect(metadata.packageManager).toBe('unknown');
+    expect(metadata.hookManagers).toEqual([]);
     expect(metadata.lockfiles).toEqual([]);
     expect(metadata.dependencies).toEqual({});
   });
@@ -52,6 +53,19 @@ describe('package-metadata', () => {
     });
     const metadata = await detectPackageMetadata('/project', fs);
     expect(metadata.packageManager).toBe('npm');
+  });
+
+  it('detects known hook managers from package metadata', async () => {
+    const fs = new InMemoryFileSystem({
+      '/project/package.json': JSON.stringify({
+        devDependencies: { husky: '^9.0.0', lefthook: '^1.0.0' },
+        'simple-git-hooks': { 'pre-commit': 'pnpm test' },
+      }),
+    });
+
+    const metadata = await detectPackageMetadata('/project', fs);
+
+    expect(metadata.hookManagers).toEqual(['husky', 'lefthook', 'simple-git-hooks']);
   });
 
   it('throws PackageMetadataError on invalid JSON', async () => {

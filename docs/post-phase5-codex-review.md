@@ -609,3 +609,67 @@ A vertical slice atual compila e os testes passam, mas isso e enganoso: parte do
 do coverage check esta invisivel para Git/Biome, status/pending nao funcionam via CLI, background
 job nao fecha round-trip, e erro de check pode virar sucesso de processo. Esses pontos precisam
 entrar no plano junto com os AUDs ja propostos.
+
+---
+
+## 7. Atualizacao apos sprint corretivo
+
+Data: 2026-04-29
+
+Status: os bloqueadores da revisao pos-Fase 5 foram corrigidos. A proxima fase pode seguir,
+com as ressalvas deliberadamente adiadas abaixo.
+
+### Corrigido no sprint
+
+- COD-1.1: `packages/checks/coverage` deixou de ficar invisivel para Git/Biome e o pacote foi
+  limpo.
+- AUD-5.1: teste de registry usa tempdir fora do repo e nao deixa lixo que quebra lint.
+- AUD-1.1: `check --trigger=<name>` resolve o tier pela config quando `--tier` nao e passado.
+- COD-1.2: comandos com posicionais (`status <jobId>`, `pending ack <id>`) chegam ao handler.
+- AUD-1.2: background jobs recebem `jobId` real antes do spawn e usam o entrypoint correto da CLI.
+- COD-1.3: check com `status: "error"` nao retorna exit code 0.
+- AUD-1.5: truncacao preserva findings por severidade.
+- AUD-1.3, AUD-1.4, AUD-1.6: baseline/diff/trend agora validam schema, integram metric
+  regressions e respeitam `metricSpecs`.
+- AUD-2.1, AUD-2.2, AUD-2.3, AUD-2.4: fronteiras persistidas tem schemas, catches relevantes
+  logam contexto, `Prompter` usa writer injetado, e `BaselineManager.accept` recebe `Clock`.
+- AUD-3.1: `install-hooks` detecta package manager e hook managers (`husky`, `lefthook`,
+  `simple-git-hooks`), preserva hooks existentes e e idempotente.
+- AUD-3.2, AUD-3.3, AUD-3.5: `doctor` chama `detect()`, `init` oferece todos os checks
+  implementados, e baseline save e atomico.
+- AUD-4.3, AUD-4.5, AUD-4.7, AUD-4.11, AUD-4.12, AUD-4.13, AUD-4.14: cheiros menores de
+  concorrencia, jobs, env, category fallback, Knip e Prompter foram tratados.
+
+### Validacao local
+
+- `pnpm typecheck`: passa.
+- `pnpm test`: passa.
+- `pnpm lint`: passa.
+- `pnpm build`: passa.
+- `git diff --check`: passa.
+- `pnpm sentiness check --trigger=post-edit --compact`: resolve `tier: "fast"`.
+- `pnpm sentiness check --tier=fast --trend --compact`: reporta `mode: "trend"`.
+- `pnpm sentiness pending ack fake-id`: reconhece o fluxo de `ack`.
+- `pnpm sentiness doctor`: retorna `ok: false` quando checks habilitados nao estao instalados,
+  como esperado.
+- `git ls-files packages/checks/coverage/src/coverage.ts`: lista o arquivo.
+
+### Limitacao de validacao
+
+- Background detached: o contrato de args/jobId foi corrigido e coberto, mas o ambiente Codex
+  mata subprocessos detached. O round-trip vivo (`result.json` + `meta.json` final) deve ser
+  validado em terminal normal ou CI.
+
+### Adiado deliberadamente
+
+- Stryker `.js`/`.mjs` config: adiado porque importar config JS executa codigo do projeto do
+  usuario e mistura seguranca, ambiente e formato de config. O suporte seguro atual cobre
+  `checkConfig.reportPath`, `stryker.conf.json`, `stryker.config.json` e fallback padrao.
+- ULID em vez de UUID para jobs: baixo retorno agora. `randomUUID` e permitido pela propria spec
+  como fallback, e a listagem ja ordena por `startedAt`.
+- PID reuse em background jobs: edge case real, mas a solucao correta e dependente de plataforma
+  (`/proc` no Linux, outras APIs fora dele). Nao bloqueia adapters nem contrato JSON.
+- `baseline init/update/accept/prune` ainda executam tiers separadamente: mantido porque a spec
+  permite esse caminho. A duplicacao de codigo foi removida com helper compartilhado e o merge de
+  `checkMetadata` foi corrigido; otimizar para uma run unica fica para quando houver custo real
+  em repos grandes.

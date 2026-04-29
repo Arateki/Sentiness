@@ -77,6 +77,7 @@ export function registerCommands(cli: CAC, deps: CommandDeps): void {
     .option('--tier <tier>', 'fast, standard, or slow')
     .option('--trigger <trigger>', 'Resolve tier from trigger')
     .option('--diff', 'Only keep findings introduced in changed files')
+    .option('--trend', 'Track metric regressions across the whole codebase')
     .option('--base <ref>', 'Base ref for diff mode')
     .option('--background', 'Run check in a background job')
     .option('--job-id <id>', 'Internal: set job id for the run')

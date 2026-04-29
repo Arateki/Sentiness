@@ -12,6 +12,7 @@ const CategorySchema = z.enum([
   'security',
   'duplication',
   'complexity',
+  'platform',
 ]);
 const CheckStatusSchema = z.enum(['ok', 'violations', 'error', 'skipped']);
 

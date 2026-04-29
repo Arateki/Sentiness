@@ -31,7 +31,7 @@ export class NodeProcessRunner implements ProcessRunner {
     try {
       const result = await execFileAsync(command, [...args], {
         cwd: options?.cwd,
-        ...(options?.env ? { env: { ...options.env } } : {}),
+        ...(options?.env ? { env: { ...process.env, ...options.env } } : {}),
         signal: options?.signal,
         timeout: options?.timeoutMs,
         maxBuffer: 20 * 1024 * 1024,

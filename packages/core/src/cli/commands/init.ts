@@ -8,8 +8,36 @@ function resolvePath(cwd: string, path: string): string {
   return isAbsolute(path) ? path : join(cwd, path);
 }
 
+const sentinessIgnoreEntries = [
+  '.sentiness/jobs/',
+  '.sentiness/cache/',
+  '.sentiness/pending-feedback.json',
+  '.sentiness/pending-feedback.json.lock/',
+] as const;
+
+function existingIgnoreLines(content: string): ReadonlySet<string> {
+  return new Set(
+    content
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && !line.startsWith('#')),
+  );
+}
+
+function missingSentinessIgnoreEntries(content: string): readonly string[] {
+  const lines = existingIgnoreLines(content);
+  if (lines.has('.sentiness/') || lines.has('.sentiness')) {
+    return [];
+  }
+  return sentinessIgnoreEntries.filter((entry) => !lines.has(entry));
+}
+
+function ignoreBlock(entries: readonly string[]): string {
+  return `# Sentiness\n${entries.join('\n')}\n`;
+}
+
 export async function initCommand(args: ParsedArgs, deps: CommandDeps): Promise<number> {
-  const prompter = new Prompter();
+  const prompter = new Prompter(deps.stdout);
 
   try {
     deps.logger.info('Welcome to Sentiness Init Wizard!');
@@ -37,10 +65,18 @@ export async function initCommand(args: ParsedArgs, deps: CommandDeps): Promise<
     deps.logger.info(`Detected TypeScript: ${hasTs ? 'yes' : 'no'}`);
     deps.logger.info(`Detected Test Runner: ${hasVitest ? 'vitest' : hasJest ? 'jest' : 'none'}`);
 
-    // Since we are deferring full Phase 5 expansion, we focus on the core implemented checks like Biome
-    const useBiome = await prompter.confirm('Enable Biome check (fast lint & format)?', true);
-    if (useBiome) {
-      checks.biome = { enabled: true, tier: 'fast' };
+    const knownChecks = [
+      { id: 'biome', label: 'Biome check (fast lint & format)', tier: 'fast' },
+      { id: 'knip', label: 'Knip check (unused code/dependencies)', tier: 'standard' },
+      { id: 'coverage', label: 'Coverage check (Istanbul coverage report)', tier: 'slow' },
+      { id: 'stryker', label: 'Stryker check (mutation testing)', tier: 'slow' },
+    ] as const;
+
+    for (const check of knownChecks) {
+      const enabled = await prompter.confirm(`Enable ${check.label}?`, true);
+      if (enabled) {
+        checks[check.id] = { enabled: true, tier: check.tier };
+      }
     }
 
     const config = {
@@ -66,16 +102,16 @@ export async function initCommand(args: ParsedArgs, deps: CommandDeps): Promise<
 
     // Update .gitignore
     const gitignorePath = resolvePath(deps.cwd, '.gitignore');
-    const ignoreEntries =
-      '\n# Sentiness\n.sentiness/jobs/\n.sentiness/cache/\n.sentiness/pending-feedback.json\n.sentiness/pending-feedback.json.lock/\n';
     if (await deps.fs.exists(gitignorePath)) {
       const current = await deps.fs.readFile(gitignorePath);
-      if (!current.includes('.sentiness/jobs/')) {
-        await deps.fs.appendFile(gitignorePath, ignoreEntries);
+      const missingEntries = missingSentinessIgnoreEntries(current);
+      if (missingEntries.length > 0) {
+        const separator = current.endsWith('\n') ? '\n' : '\n\n';
+        await deps.fs.appendFile(gitignorePath, `${separator}${ignoreBlock(missingEntries)}`);
         deps.logger.info('Added .sentiness/ ignores to .gitignore');
       }
     } else {
-      await deps.fs.writeFile(gitignorePath, ignoreEntries.trimStart());
+      await deps.fs.writeFile(gitignorePath, ignoreBlock(sentinessIgnoreEntries));
       deps.logger.info('Created .gitignore with .sentiness/ ignores');
     }
 

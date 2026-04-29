@@ -27,7 +27,10 @@ async function lineContent(
     try {
       const content = await ctx.fs.readFile(path);
       cache.set(path, content.split(/\r?\n/));
-    } catch {
+    } catch (error) {
+      ctx.logger.debug(`Failed to read ${file} for Biome fingerprint context`, {
+        error: error instanceof Error ? error.message : String(error),
+      });
       cache.set(path, []);
     }
   }

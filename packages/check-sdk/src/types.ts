@@ -10,7 +10,8 @@ export type Category =
   | 'coverage'
   | 'security'
   | 'duplication'
-  | 'complexity';
+  | 'complexity'
+  | 'platform';
 
 export type Severity = 'error' | 'warning' | 'info';
 
@@ -48,6 +49,13 @@ export type CheckMetrics = {
   readonly [name: string]: number | string | boolean;
 };
 
+export type MetricDirection = 'higher-is-better' | 'lower-is-better';
+
+export type MetricSpec = {
+  readonly direction: MetricDirection;
+  readonly description?: string;
+};
+
 export type CheckStatus = 'ok' | 'violations' | 'error' | 'skipped';
 
 export type CheckResult = {
@@ -55,6 +63,7 @@ export type CheckResult = {
   readonly findings: readonly Finding[];
   readonly metrics?: CheckMetrics;
   readonly rawOutputPath?: string;
+  /** Check packages may return 0 here; the core runner records the final duration. */
   readonly durationMs: number;
   readonly skipReason?: string;
   readonly errorMessage?: string;
@@ -157,6 +166,7 @@ export type Check = {
   readonly id: CheckId;
   readonly category: Category;
   readonly defaultTier: Tier;
+  readonly metricSpecs?: Readonly<Record<string, MetricSpec>>;
   detect(ctx: CheckContext): Promise<DetectResult>;
   run(ctx: CheckContext): Promise<CheckResult>;
   dispose?(): Promise<void>;

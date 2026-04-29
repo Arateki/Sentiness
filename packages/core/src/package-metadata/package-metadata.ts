@@ -3,6 +3,7 @@ import type { FileSystem } from '@sentiness/check-sdk';
 import { z } from 'zod';
 
 export type PackageManager = 'pnpm' | 'npm' | 'yarn' | 'unknown';
+export type HookManager = 'husky' | 'lefthook' | 'simple-git-hooks';
 
 export type LockfileInfo = {
   readonly path: string;
@@ -12,6 +13,7 @@ export type LockfileInfo = {
 export type PackageMetadata = {
   readonly packageJsonPath: string | null;
   readonly packageManager: PackageManager;
+  readonly hookManagers: readonly HookManager[];
   readonly lockfiles: readonly LockfileInfo[];
   readonly dependencies: Readonly<Record<string, string>>;
   readonly devDependencies: Readonly<Record<string, string>>;
@@ -31,6 +33,7 @@ const PackageJsonSchema = z.object({
   dependencies: DependencyRecordSchema,
   devDependencies: DependencyRecordSchema,
   optionalDependencies: DependencyRecordSchema,
+  'simple-git-hooks': z.unknown().optional(),
 });
 
 const lockfileCandidates: readonly LockfileInfo[] = [
@@ -70,6 +73,25 @@ function packageManagerFromLockfiles(lockfiles: readonly LockfileInfo[]): Packag
   return 'unknown';
 }
 
+function detectHookManagers(parsed: z.infer<typeof PackageJsonSchema>): readonly HookManager[] {
+  const dependencyNames = new Set([
+    ...Object.keys(parsed.dependencies ?? {}),
+    ...Object.keys(parsed.devDependencies ?? {}),
+    ...Object.keys(parsed.optionalDependencies ?? {}),
+  ]);
+  const managers: HookManager[] = [];
+  if (dependencyNames.has('husky')) {
+    managers.push('husky');
+  }
+  if (dependencyNames.has('lefthook')) {
+    managers.push('lefthook');
+  }
+  if (dependencyNames.has('simple-git-hooks') || parsed['simple-git-hooks'] !== undefined) {
+    managers.push('simple-git-hooks');
+  }
+  return managers;
+}
+
 export async function detectPackageMetadata(cwd: string, fs: FileSystem): Promise<PackageMetadata> {
   const lockfiles: LockfileInfo[] = [];
   for (const candidate of lockfileCandidates) {
@@ -83,6 +105,7 @@ export async function detectPackageMetadata(cwd: string, fs: FileSystem): Promis
     return {
       packageJsonPath: null,
       packageManager: packageManagerFromLockfiles(lockfiles),
+      hookManagers: [],
       lockfiles,
       dependencies: {},
       devDependencies: {},
@@ -97,6 +120,7 @@ export async function detectPackageMetadata(cwd: string, fs: FileSystem): Promis
     return {
       packageJsonPath,
       packageManager: lockfileManager === 'unknown' ? fieldManager : lockfileManager,
+      hookManagers: detectHookManagers(parsed),
       lockfiles,
       dependencies: parsed.dependencies ?? {},
       devDependencies: parsed.devDependencies ?? {},

@@ -95,6 +95,12 @@ export const coverageCheck: Check = {
   id: checkId,
   category: 'coverage',
   defaultTier: 'slow',
+  metricSpecs: {
+    lineCoverage: {
+      direction: 'higher-is-better',
+      description: 'Global line coverage percentage',
+    },
+  },
   async detect(_ctx) {
     // Check if the project has a coverage-final.json file or if vitest/jest is configured to emit it.
     // We just say it's available because there's no CLI tool to detect. The actual run will skip if missing.

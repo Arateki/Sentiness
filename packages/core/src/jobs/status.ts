@@ -1,12 +1,29 @@
 import { join } from 'node:path';
-import type { FileSystem } from '@sentiness/check-sdk';
-import type { Report } from '../schema/report.js';
-import type { JobMeta, JobStatus } from './types.js';
+import type { FileSystem, Logger } from '@sentiness/check-sdk';
+import { type Report, ReportSchema } from '../schema/report.js';
+import { type JobMeta, JobMetaSchema, type JobStatus } from './types.js';
+
+function normalizeJobMeta(meta: ReturnType<typeof JobMetaSchema.parse>): JobMeta {
+  return {
+    jobId: meta.jobId,
+    jobDir: meta.jobDir,
+    resultPath: meta.resultPath,
+    pid: meta.pid,
+    startedAt: meta.startedAt,
+    status: meta.status,
+    command: meta.command,
+    args: meta.args,
+    tier: meta.tier,
+    ...(meta.completedAt !== undefined ? { completedAt: meta.completedAt } : {}),
+    ...(meta.exitCode !== undefined ? { exitCode: meta.exitCode } : {}),
+  };
+}
 
 export class JobReader {
   constructor(
     private readonly jobsDir: string,
     private readonly fs: FileSystem,
+    private readonly logger?: Logger,
   ) {}
 
   private isAlive(pid: number): boolean {
@@ -28,16 +45,21 @@ export class JobReader {
 
     try {
       const content = await this.fs.readFile(metaPath);
-      const meta = JSON.parse(content) as JobMeta;
+      const meta = normalizeJobMeta(JobMetaSchema.parse(JSON.parse(content)));
 
       if (meta.status === 'running') {
         if (!this.isAlive(meta.pid)) {
-          return { ...meta, status: 'failed', exitCode: -1 };
+          const updated = { ...meta, status: 'failed' as const, exitCode: -1 };
+          await this.fs.writeFile(metaPath, `${JSON.stringify(updated, null, 2)}\n`);
+          return updated;
         }
       }
 
       return meta;
-    } catch {
+    } catch (error) {
+      this.logger?.warn(`Failed to read job metadata for ${jobId}`, {
+        error: error instanceof Error ? error.message : String(error),
+      });
       return undefined;
     }
   }
@@ -50,8 +72,11 @@ export class JobReader {
 
     try {
       const content = await this.fs.readFile(resultPath);
-      return JSON.parse(content) as Report;
-    } catch {
+      return ReportSchema.parse(JSON.parse(content));
+    } catch (error) {
+      this.logger?.warn(`Failed to read job result for ${jobId}`, {
+        error: error instanceof Error ? error.message : String(error),
+      });
       return undefined;
     }
   }
@@ -77,7 +102,7 @@ export class JobReader {
       }
     }
 
-    return jobs;
+    return [...jobs].sort((left, right) => right.startedAt.localeCompare(left.startedAt));
   }
 
   async readLogs(

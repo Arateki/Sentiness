@@ -6,6 +6,7 @@ import { createNodeFileSystem } from '../fs/node-fs.js';
 import { createGitProvider } from '../git/git.js';
 import { createLogger } from '../logger/logger.js';
 import { createProcessRunner } from '../process/process-runner.js';
+import { SENTINESS_VERSION } from '../version.js';
 import { registerCommands } from './commands/registry.js';
 
 const systemClock: Clock = {
@@ -15,12 +16,13 @@ const systemClock: Clock = {
 
 export async function main(argv: readonly string[] = process.argv): Promise<void> {
   const processRunner = createProcessRunner();
+  const clock = systemClock;
   const deps = {
     cwd: process.cwd(),
     fs: createNodeFileSystem(),
     processRunner,
-    logger: createLogger({ level: 'info', stream: process.stderr, format: 'pretty' }),
-    clock: systemClock,
+    logger: createLogger({ level: 'info', stream: process.stderr, format: 'pretty', clock }),
+    clock,
     git: createGitProvider(processRunner),
     stdout: { write: (text: string) => process.stdout.write(text) },
     ...(argv[1] ? { cliPath: argv[1] } : {}),
@@ -28,7 +30,7 @@ export async function main(argv: readonly string[] = process.argv): Promise<void
   const cli = cac('sentiness');
   registerCommands(cli, deps);
   cli.help();
-  cli.version('0.1.0');
+  cli.version(SENTINESS_VERSION);
 
   try {
     cli.parse([...argv], { run: false });

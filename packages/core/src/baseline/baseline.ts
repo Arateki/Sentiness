@@ -1,13 +1,23 @@
 import { randomUUID } from 'node:crypto';
 import { dirname } from 'node:path';
-import type { CheckMetrics, FileSystem, Finding, GitProvider } from '@sentiness/check-sdk';
+import {
+  asCheckId,
+  asRuleId,
+  type CheckId,
+  type CheckMetrics,
+  type Clock,
+  type FileSystem,
+  type Finding,
+  type GitProvider,
+  type RuleId,
+} from '@sentiness/check-sdk';
 import { z } from 'zod';
 import type { RunOutcome } from '../runner/runner.js';
 import { BaselineSnapshotSchema } from './schema.js';
 
 export type BaselineEntry = {
-  readonly checkId: string;
-  readonly ruleId: string;
+  readonly checkId: CheckId;
+  readonly ruleId: RuleId;
   readonly fingerprint: string;
   readonly location: { readonly file: string; readonly startLine?: number };
   readonly addedAt: string;
@@ -53,8 +63,8 @@ function normalizeSnapshot(snapshot: z.infer<typeof BaselineSnapshotSchema>): Ba
     createdAt: snapshot.createdAt,
     createdAtCommit: snapshot.createdAtCommit,
     suppressed: snapshot.suppressed.map((entry) => ({
-      checkId: entry.checkId,
-      ruleId: entry.ruleId,
+      checkId: asCheckId(entry.checkId),
+      ruleId: asRuleId(entry.ruleId),
       fingerprint: entry.fingerprint,
       location: {
         file: entry.location.file,
@@ -71,12 +81,18 @@ function allFindings(outcome: RunOutcome): readonly Finding[] {
   return [...outcome.results.values()].flatMap((result) => result.findings);
 }
 
-function collectMetrics(outcome: RunOutcome): Readonly<Record<string, MetricBaseline>> {
+export function collectMetricBaselines(
+  outcome: RunOutcome,
+): Readonly<Record<string, MetricBaseline>> {
   const metrics: Record<string, MetricBaseline> = {};
   for (const [checkId, result] of outcome.results) {
+    const specs = outcome.checkMetadata.get(checkId)?.metricSpecs ?? {};
     for (const [name, value] of Object.entries(result.metrics ?? ({} satisfies CheckMetrics))) {
       if (typeof value === 'number') {
-        metrics[`${checkId}.${name}`] = { value, direction: 'higher-is-better' };
+        metrics[`${checkId}.${name}`] = {
+          value,
+          direction: specs[name]?.direction ?? 'higher-is-better',
+        };
       }
     }
   }
@@ -145,7 +161,7 @@ export class BaselineManager {
       suppressed: allFindings(outcome).map((finding) =>
         toEntry(finding, outcome.completedAt, 'initial baseline'),
       ),
-      metrics: collectMetrics(outcome),
+      metrics: collectMetricBaselines(outcome),
     });
   }
 
@@ -159,13 +175,18 @@ export class BaselineManager {
     });
   }
 
-  static accept(snapshot: BaselineSnapshot, finding: Finding, reason: string): BaselineSnapshot {
+  static accept(
+    snapshot: BaselineSnapshot,
+    finding: Finding,
+    reason: string,
+    clock: Clock,
+  ): BaselineSnapshot {
     if (reason.trim().length === 0) {
       throw new BaselineAcceptError('Baseline accept reason is required');
     }
     return sortSnapshot({
       ...snapshot,
-      suppressed: [...snapshot.suppressed, toEntry(finding, new Date().toISOString(), reason)],
+      suppressed: [...snapshot.suppressed, toEntry(finding, clock.isoNow(), reason)],
     });
   }
 }

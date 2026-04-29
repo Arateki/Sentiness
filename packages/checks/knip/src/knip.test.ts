@@ -136,4 +136,22 @@ describe('knip', () => {
     expect(result.findings).toHaveLength(1);
     expect(result.findings[0]?.fingerprint).toBeDefined();
   });
+
+  it('drops file-level issues without a file path instead of reporting unknown', async () => {
+    const fs = new InMemoryFileSystem();
+    const process = new FakeProcessRunner();
+    process.enqueue({
+      exitCode: 0,
+      stdout: JSON.stringify({
+        exports: [{ name: 'unused' }],
+      }),
+      stderr: '',
+    });
+
+    const ctx = makeContext(fs, process);
+    const result = await knipCheck.run(ctx);
+
+    expect(result.status).toBe('ok');
+    expect(result.findings).toHaveLength(0);
+  });
 });

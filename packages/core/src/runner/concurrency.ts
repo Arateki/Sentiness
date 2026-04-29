@@ -7,7 +7,7 @@ export async function runLimited<T>(
   const workers = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
     while (queue.length > 0) {
       const item = queue.shift();
-      if (item) {
+      if (item !== undefined) {
         await worker(item);
       }
     }

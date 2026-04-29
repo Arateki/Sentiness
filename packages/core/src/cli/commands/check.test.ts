@@ -133,4 +133,20 @@ describe('checkCommand', () => {
     expect(meta.status).toBe('completed');
     expect(meta.exitCode).toBe(0);
   });
+
+  it('marks trend mode when requested', async () => {
+    const fs = new InMemoryFileSystem({
+      '/project/sentiness.config.json': JSON.stringify(DEFAULT_CONFIG),
+    });
+    const stdout = vi.fn();
+
+    const exitCode = await checkCommand(
+      { tier: 'fast', trend: true, compact: true },
+      makeDeps(fs, stdout),
+    );
+
+    expect(exitCode).toBe(0);
+    const report = JSON.parse(String(stdout.mock.calls[0]?.[0]));
+    expect(report.context.mode).toBe('trend');
+  });
 });

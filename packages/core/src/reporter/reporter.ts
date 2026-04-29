@@ -3,6 +3,7 @@ import type { MetricRegression } from '../baseline/diff-filter.js';
 import type { ResolvedConfig } from '../config/config.js';
 import type { RunOutcome } from '../runner/runner.js';
 import { type Report, ReportSchema } from '../schema/report.js';
+import { SENTINESS_VERSION } from '../version.js';
 import { buildAgentInstructions } from './agent-instructions.js';
 
 export type ReporterOptions = {
@@ -98,7 +99,7 @@ function checkEntry(
   const truncated = truncateFindings(result.findings, maxFindings);
   return {
     id: checkId,
-    category: metadata?.category ?? 'lint',
+    category: metadata?.category ?? 'platform',
     status: result.status,
     durationMs: result.durationMs,
     ...(result.metrics ? { metrics: result.metrics } : {}),
@@ -131,7 +132,7 @@ export function buildReport(
 
   return ReportSchema.parse({
     schemaVersion: '1.0',
-    sentinessVersion: '0.1.0',
+    sentinessVersion: SENTINESS_VERSION,
     runId: input.outcome.runId,
     startedAt: input.outcome.startedAt,
     completedAt: input.outcome.completedAt,

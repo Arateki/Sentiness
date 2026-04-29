@@ -4,49 +4,81 @@ import { JobReader } from './status.js';
 import type { JobMeta } from './types.js';
 
 describe('JobReader', () => {
-  it('reads existing job meta correctly', async () => {
-    const fs = new InMemoryFileSystem();
-    const reader = new JobReader('/jobs', fs);
-    const meta: JobMeta = {
+  function meta(overrides: Partial<JobMeta> = {}): JobMeta {
+    return {
       jobId: '123',
       jobDir: '/jobs/123',
       resultPath: '/jobs/123/result.json',
-      pid: 99999999, // Some non-existent PID
+      pid: process.pid,
       startedAt: '2024-01-01T00:00:00.000Z',
       status: 'completed',
       command: 'echo',
       args: [],
       tier: 'slow',
+      ...overrides,
     };
+  }
+
+  function reportJson(): string {
+    return JSON.stringify({
+      schemaVersion: '1.0',
+      sentinessVersion: '0.1.0',
+      runId: 'run',
+      startedAt: '2024-01-01T00:00:00.000Z',
+      completedAt: '2024-01-01T00:00:01.000Z',
+      durationMs: 1000,
+      context: {
+        cwd: '/project',
+        tier: 'fast',
+        trigger: null,
+        mode: 'full',
+        baseRef: null,
+        headRef: 'HEAD',
+        changedFiles: [],
+        addedDependencies: [],
+        removedDependencies: [],
+      },
+      summary: {
+        status: 'ok',
+        totals: { error: 0, warning: 0, info: 0 },
+        newInDiff: { error: 0, warning: 0, info: 0 },
+        blocking: false,
+        topIssues: [],
+        checksRun: 0,
+        checksSkipped: 0,
+        checksErrored: 0,
+      },
+      checks: [],
+      trend: { available: false, reason: 'no metric baseline regressions' },
+      baseline: { applied: false, path: '', suppressedFindings: 0 },
+      agentInstructions: { blocking: false, mustFix: [], shouldFix: [], informational: [] },
+    });
+  }
+
+  it('reads existing job meta correctly', async () => {
+    const fs = new InMemoryFileSystem();
+    const reader = new JobReader('/jobs', fs);
+    const jobMeta = meta({ pid: 99999999 });
 
     await fs.mkdir('/jobs/123', { recursive: true });
-    await fs.writeFile('/jobs/123/meta.json', JSON.stringify(meta));
+    await fs.writeFile('/jobs/123/meta.json', JSON.stringify(jobMeta));
 
     const result = await reader.read('123');
-    expect(result).toEqual(meta);
+    expect(result).toEqual(jobMeta);
   });
 
   it('detects orphaned jobs by checking PID liveness', async () => {
     const fs = new InMemoryFileSystem();
     const reader = new JobReader('/jobs', fs);
-    const meta: JobMeta = {
-      jobId: '123',
-      jobDir: '/jobs/123',
-      resultPath: '/jobs/123/result.json',
-      pid: 99999999, // Process does not exist
-      startedAt: '2024-01-01T00:00:00.000Z',
-      status: 'running',
-      command: 'echo',
-      args: [],
-      tier: 'slow',
-    };
+    const jobMeta = meta({ pid: 99999999, status: 'running' });
 
     await fs.mkdir('/jobs/123', { recursive: true });
-    await fs.writeFile('/jobs/123/meta.json', JSON.stringify(meta));
+    await fs.writeFile('/jobs/123/meta.json', JSON.stringify(jobMeta));
 
     const result = await reader.read('123');
     expect(result?.status).toBe('failed');
     expect(result?.exitCode).toBe(-1);
+    await expect(fs.readFile('/jobs/123/meta.json')).resolves.toContain('"status": "failed"');
   });
 
   it('returns undefined for unknown jobId', async () => {
@@ -83,13 +115,29 @@ describe('JobReader', () => {
     await fs.mkdir('/jobs/1', { recursive: true });
     await fs.writeFile(
       '/jobs/1/meta.json',
-      JSON.stringify({ jobId: '1', status: 'completed', pid: 1, tier: 'slow' }),
+      JSON.stringify(
+        meta({
+          jobId: '1',
+          jobDir: '/jobs/1',
+          resultPath: '/jobs/1/result.json',
+          status: 'completed',
+          startedAt: '2024-01-01T00:00:00.000Z',
+        }),
+      ),
     );
 
     await fs.mkdir('/jobs/2', { recursive: true });
     await fs.writeFile(
       '/jobs/2/meta.json',
-      JSON.stringify({ jobId: '2', status: 'running', pid: process.pid, tier: 'slow' }),
+      JSON.stringify(
+        meta({
+          jobId: '2',
+          jobDir: '/jobs/2',
+          resultPath: '/jobs/2/result.json',
+          status: 'running',
+          startedAt: '2024-01-02T00:00:00.000Z',
+        }),
+      ),
     );
 
     // File not directory
@@ -97,6 +145,7 @@ describe('JobReader', () => {
 
     const allJobs = await reader.list();
     expect(allJobs).toHaveLength(2);
+    expect(allJobs[0]?.jobId).toBe('2');
 
     const completedJobs = await reader.list({ status: 'completed' });
     expect(completedJobs).toHaveLength(1);
@@ -123,10 +172,19 @@ describe('JobReader', () => {
     const fs = new InMemoryFileSystem();
     const reader = new JobReader('/jobs', fs);
     await fs.mkdir('/jobs/123', { recursive: true });
-    await fs.writeFile('/jobs/123/result.json', JSON.stringify({ summary: { status: 'ok' } }));
+    await fs.writeFile('/jobs/123/result.json', reportJson());
 
     const result = await reader.readResult('123');
     expect(result?.summary.status).toBe('ok');
+  });
+
+  it('returns undefined for malformed job metadata', async () => {
+    const fs = new InMemoryFileSystem();
+    const reader = new JobReader('/jobs', fs);
+    await fs.mkdir('/jobs/123', { recursive: true });
+    await fs.writeFile('/jobs/123/meta.json', JSON.stringify({ jobId: '123' }));
+
+    expect(await reader.read('123')).toBeUndefined();
   });
 
   it('handles EPERM correctly as alive', async () => {
@@ -141,20 +199,10 @@ describe('JobReader', () => {
     try {
       const fs = new InMemoryFileSystem();
       const reader = new JobReader('/jobs', fs);
-      const meta: JobMeta = {
-        jobId: '123',
-        jobDir: '/jobs/123',
-        resultPath: '/jobs/123/result.json',
-        pid: 99999999, // Mocked to EPERM
-        startedAt: '2024-01-01T00:00:00.000Z',
-        status: 'running',
-        command: 'echo',
-        args: [],
-        tier: 'slow',
-      };
+      const jobMeta = meta({ pid: 99999999, status: 'running' });
 
       await fs.mkdir('/jobs/123', { recursive: true });
-      await fs.writeFile('/jobs/123/meta.json', JSON.stringify(meta));
+      await fs.writeFile('/jobs/123/meta.json', JSON.stringify(jobMeta));
 
       const result = await reader.read('123');
       expect(result?.status).toBe('running');

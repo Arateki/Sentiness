@@ -40,6 +40,7 @@ const categories: readonly Category[] = [
   'security',
   'duplication',
   'complexity',
+  'platform',
 ];
 
 function isRecord(value: unknown): value is Record<string, unknown> {

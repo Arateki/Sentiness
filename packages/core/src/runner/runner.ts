@@ -11,17 +11,19 @@ import {
   type FileSystem,
   type GitProvider,
   type Logger,
+  type MetricSpec,
   type ProcessRunner,
   type Tier,
 } from '@sentiness/check-sdk';
 import type { ResolvedConfig, Trigger } from '../config/config.js';
-import type { CheckRegistry } from '../registry/registry.js';
+import type { CheckLoadFailure, CheckRegistry } from '../registry/registry.js';
 import { runLimited } from './concurrency.js';
 
 export type RunOptions = {
   readonly tier?: Tier;
   readonly trigger?: string;
   readonly diffOnly: boolean;
+  readonly trend?: boolean;
   readonly baseRef?: string;
   readonly maxConcurrency?: number;
   readonly signal?: AbortSignal;
@@ -53,7 +55,13 @@ export type RunContext = {
 export type RunOutcome = {
   readonly runId: string;
   readonly results: ReadonlyMap<CheckId, CheckResult>;
-  readonly checkMetadata: ReadonlyMap<CheckId, { readonly category: Category }>;
+  readonly checkMetadata: ReadonlyMap<
+    CheckId,
+    {
+      readonly category: Category;
+      readonly metricSpecs?: Readonly<Record<string, MetricSpec>>;
+    }
+  >;
   readonly startedAt: string;
   readonly completedAt: string;
   readonly durationMs: number;
@@ -154,9 +162,11 @@ async function runOneCheck(
   }
 }
 
-function syntheticLoadFailureResults(input: RunInput): ReadonlyMap<CheckId, CheckResult> {
+function syntheticLoadFailureResults(
+  failures: readonly CheckLoadFailure[],
+): ReadonlyMap<CheckId, CheckResult> {
   const results = new Map<CheckId, CheckResult>();
-  for (const failure of input.registry.loadFailures()) {
+  for (const failure of failures) {
     results.set(failure.requestedId, {
       status: 'error',
       durationMs: 0,
@@ -183,25 +193,36 @@ export async function runChecks(input: RunInput, options: RunOptions): Promise<R
   const tier = resolveTier(input.config, options);
   const baseRef = options.baseRef ?? 'HEAD';
   const changedFiles = options.diffOnly ? await input.git.changedFiles(input.cwd, baseRef) : [];
+  const mode: RunMode = options.diffOnly ? 'diff' : options.trend ? 'trend' : 'full';
   const context: RunContext = {
     cwd: input.cwd,
     tier,
     trigger: options.trigger ?? null,
-    mode: options.diffOnly ? 'diff' : 'full',
+    mode,
     baseRef: options.diffOnly ? baseRef : null,
     headRef: 'HEAD',
     changedFiles,
   };
-  const results = new Map<CheckId, CheckResult>(syntheticLoadFailureResults(input));
-  const checkMetadata = new Map<CheckId, { readonly category: Category }>();
-  for (const failure of input.registry.loadFailures()) {
-    checkMetadata.set(failure.requestedId, { category: 'lint' });
+  const loadFailures = input.registry.loadFailures();
+  const results = new Map<CheckId, CheckResult>(syntheticLoadFailureResults(loadFailures));
+  const checkMetadata = new Map<
+    CheckId,
+    {
+      readonly category: Category;
+      readonly metricSpecs?: Readonly<Record<string, MetricSpec>>;
+    }
+  >();
+  for (const failure of loadFailures) {
+    checkMetadata.set(failure.requestedId, { category: 'platform' });
   }
   const checks = input.registry.filterByTier(tier);
   const concurrency = options.maxConcurrency ?? Math.max(1, availableParallelism() - 1);
 
   await runLimited(checks, concurrency, async (check) => {
-    checkMetadata.set(check.id, { category: check.category });
+    checkMetadata.set(check.id, {
+      category: check.category,
+      ...(check.metricSpecs ? { metricSpecs: check.metricSpecs } : {}),
+    });
     results.set(check.id, await runOneCheck(check, input, context, options));
   });
 

@@ -66,7 +66,7 @@ describe('normalizeKnipOutput', () => {
       exports: ['justAString'], // test string fallback
     });
 
-    expect(issues).toHaveLength(9);
+    expect(issues).toHaveLength(8);
     expect(issues.find((i) => i.ruleId === 'unused-dev-dependencies')).toBeDefined();
     expect(issues.find((i) => i.ruleId === 'unlisted-dependencies')).toBeDefined();
     expect(issues.find((i) => i.ruleId === 'unused-binaries')).toBeDefined();
@@ -76,7 +76,6 @@ describe('normalizeKnipOutput', () => {
     expect(issues.find((i) => i.ruleId === 'unused-class-members')).toBeDefined();
     expect(issues.find((i) => i.ruleId === 'duplicates')).toBeDefined();
 
-    const stringFallback = issues.find((i) => i.name === 'justAString');
-    expect(stringFallback?.message).toBe('Unused unused-exports: justAString');
+    expect(issues.find((i) => i.name === 'justAString')).toBeUndefined();
   });
 });

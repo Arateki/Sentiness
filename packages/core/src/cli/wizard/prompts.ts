@@ -1,8 +1,31 @@
 import { stdin as input, stdout as output } from 'node:process';
-import { createInterface } from 'node:readline/promises';
+import { createInterface, type Interface } from 'node:readline/promises';
+import type { OutputWriter } from '../commands/types.js';
+
+export type PromptInterface = Pick<Interface, 'question' | 'close'>;
+
+export type PrompterOptions = {
+  readonly writer?: OutputWriter;
+  readonly readline?: PromptInterface;
+  readonly input?: NodeJS.ReadableStream;
+  readonly output?: NodeJS.WritableStream;
+};
+
+function isOutputWriter(value: OutputWriter | PrompterOptions): value is OutputWriter {
+  return 'write' in value;
+}
 
 export class Prompter {
-  private readonly rl = createInterface({ input, output });
+  private readonly writer: OutputWriter;
+  private readonly rl: PromptInterface;
+
+  constructor(writerOrOptions: OutputWriter | PrompterOptions = {}) {
+    const options = isOutputWriter(writerOrOptions) ? { writer: writerOrOptions } : writerOrOptions;
+    this.writer = options.writer ?? { write: (text) => output.write(text) };
+    this.rl =
+      options.readline ??
+      createInterface({ input: options.input ?? input, output: options.output ?? output });
+  }
 
   async ask(question: string, defaultAnswer?: string): Promise<string> {
     const defaultText = defaultAnswer ? ` (${defaultAnswer})` : '';
@@ -49,7 +72,7 @@ export class Prompter {
         return match;
       }
 
-      console.log('Invalid choice, please try again.');
+      this.writer.write('Invalid choice, please try again.\n');
     }
   }
 
