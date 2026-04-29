@@ -18,6 +18,7 @@
     "generate-schema": "tsx scripts/generate-schema.ts"
   },
   "dependencies": {
+    "@sentiness/adapters": "workspace:*",
     "@sentiness/check-sdk": "workspace:*",
     "cac": "latest",
     "zod": "latest"

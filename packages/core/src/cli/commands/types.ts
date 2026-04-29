@@ -1,3 +1,4 @@
+import type { AgentAdapter, AgentName } from '@sentiness/adapters';
 import type { Clock, FileSystem, GitProvider, Logger, ProcessRunner } from '@sentiness/check-sdk';
 
 export type OutputWriter = {
@@ -13,6 +14,10 @@ export type CommandDeps = {
   readonly git: GitProvider;
   readonly stdout: OutputWriter;
   readonly cliPath?: string;
+  readonly adapterLoader?: () => Promise<{
+    readonly listAdapters: () => readonly AgentAdapter[];
+    readonly getAdapter: (agent: AgentName) => AgentAdapter | undefined;
+  }>;
 };
 
 export type ParsedArgs = {

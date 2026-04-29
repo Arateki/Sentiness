@@ -9,6 +9,7 @@ import { checkCommand } from './check.js';
 import { doctorCommand } from './doctor.js';
 import { initCommand } from './init.js';
 import { installHooksCommand } from './install-hooks.js';
+import { installSkillCommand } from './install-skill.js';
 import { pendingCommand } from './pending.js';
 import { statusCommand } from './status.js';
 import type { CommandDeps, ParsedArgs } from './types.js';
@@ -71,6 +72,11 @@ export function registerCommands(cli: CAC, deps: CommandDeps): void {
     .command('install-hooks', 'Install Git hooks (pre-commit, optional pre-push)')
     .option('--push', 'Also install pre-push hook')
     .action(wrap(installHooksCommand, deps));
+
+  cli
+    .command('install-skill', 'Install managed Sentiness instructions for an AI agent')
+    .option('--agent <agent>', 'claude-code, codex, gemini, or all')
+    .action(wrap(installSkillCommand, deps));
 
   cli
     .command('check', 'Run configured quality checks')

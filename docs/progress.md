@@ -26,7 +26,7 @@ The implementation should progress in usable slices, not by completing the whole
 4. **Phase D - CLI onboarding and local automation**
    - Goal: make Sentiness easy to add to a target repo.
    - Scope: `sentiness init`, `sentiness install-hooks`, richer `doctor`, config generation, hook generation, and package/tool detection.
-   - Status: **partial**; `check`, `init`, and a minimal `doctor` exist.
+   - Status: **done**; `init`, `install-hooks`, and `doctor` are implemented. `doctor` calls each enabled check's `detect()` and reports missing local tools with install suggestions.
 
 5. **Phase E - Essential check packages**
    - Goal: add the most critical check packages to enable agent integration testing.
@@ -36,7 +36,7 @@ The implementation should progress in usable slices, not by completing the whole
 6. **Phase F - Agent adapters**
    - Goal: generate managed instruction sections for Claude Code, Codex, and Gemini.
    - Scope: shared skill text template, adapter registry, managed marker updates, and `install-skill` integration.
-   - Status: **not started**.
+   - Status: **done**; `@sentiness/adapters` now provides the shared template, idempotent managed-section writers for `CLAUDE.md`, `AGENTS.md`, and `GEMINI.md`, and the CLI exposes `sentiness install-skill --agent=<claude-code|codex|gemini|all>`.
 
 7. **Phase G - Integration, docs, and polish**
    - Goal: harden behavior across realistic projects and document public usage.
@@ -74,10 +74,40 @@ A post-implementation audit identified a set of bugs and spec gaps that were add
 | §4.5 | `'platform'` category is now documented in `CLAUDE.md` §T0.2 `Category` type and in Appendix A `checks[]` field. | **Done** |
 | §4.2 | `SENTINESS_VERSION` is still hardcoded `'0.1.0'` in `packages/core/src/version.ts` | Open |
 | §4.3 | No property-based tests for `applyBaseline` / `applyBaselineToOutcome` idempotency | Open |
-| §4.4 | `install-hooks` command exists but is marked as a known gap above | Open |
-| §4.6 | `doctor` does not yet call each check's `detect()` | Open |
+| §4.4 | `install-hooks` command exists but is marked as a known gap above | **Done** |
+| §4.6 | `doctor` does not yet call each check's `detect()` | **Done** |
 | §4.7 | No E2E tests yet | Open |
-| §4.8 | No adapter packages yet | Open |
+| §4.8 | No adapter packages yet | **Done** |
+
+---
+
+## Phase F validation audit (2026-04-29)
+
+Before starting Phase G, Phase F was rechecked against `CLAUDE.md` T6 and the recent post-Phase 5 correction history.
+
+### Findings corrected
+
+| ID | What | Status |
+|----|------|--------|
+| F-AUD-1 | The generated adapter template had all seven sections, but the hard-rules section summarized §3 too aggressively. It now carries the full adapted rule set, including no `any`, no unsafe casts, no global state, no `console.log`, no swallowed errors, no partial implementations, protected config/baseline/pending files, no disabled tests, and one task/branch/PR discipline. | Done |
+| F-AUD-2 | Running adapter tests with coverage created `packages/adapters/coverage`, but the new package was missing from `.gitignore` and `biome.json` coverage exclusions. Both files now exclude adapter coverage output. | Done |
+| F-AUD-3 | The adapter registry public surface was implemented but not directly asserted. `index.test.ts` now verifies `TEMPLATE_VERSION`, `listAdapters()`, `getAdapter()`, and the three target files. | Done |
+
+### Validation performed
+
+```sh
+pnpm --filter @sentiness/adapters exec vitest run --config ../../vitest.config.base.ts src --coverage
+pnpm typecheck
+pnpm build
+pnpm test
+pnpm lint
+pnpm sentiness check --tier=fast --compact
+node packages/core/dist/cli/index.js install-skill --agent=all
+node packages/core/dist/cli/index.js install-skill --agent=all
+git check-ignore -v packages/adapters/coverage/coverage-final.json
+```
+
+Adapter package coverage after the audit: 97.72% lines and 84% branches. The built `install-skill --agent=all` smoke test created `CLAUDE.md`, `AGENTS.md`, and `GEMINI.md` in a temporary project on the first run and returned `changed: false` for all three on the second run.
 
 ---
 
@@ -143,8 +173,18 @@ A post-implementation audit identified a set of bugs and spec gaps that were add
   - `sentiness baseline init / update / accept / prune`
   - `sentiness pending` / `sentiness pending ack`
   - `sentiness install-hooks`
+  - `sentiness install-skill`
   - `sentiness init` (wizard)
   - `sentiness doctor`
+
+### `@sentiness/adapters`
+
+- Shared generated instruction template for agent integrations.
+- Public adapter registry: `listAdapters()`, `getAdapter()`, `renderSkill()`, and `TEMPLATE_VERSION`.
+- Claude Code writer for root `CLAUDE.md`.
+- Codex writer for root `AGENTS.md`.
+- Gemini writer for root `GEMINI.md`.
+- Idempotent replacement between `<!-- sentiness:start -->` and `<!-- sentiness:end -->` markers.
 
 ### Check packages
 
@@ -161,27 +201,32 @@ All implemented check packages follow the same structure: `detect`, `run`, `norm
 
 ## Current validation status
 
-The following commands passed after the Sentiness rename:
+The following commands passed after Phase F adapters were added:
 
 ```sh
-pnpm install
 pnpm typecheck
 pnpm build
 pnpm test
 pnpm lint
-pnpm sentiness doctor
 pnpm sentiness check --tier=fast --compact
 ```
 
-The final `sentiness check` report returned `summary.status: "ok"` with no findings.
+Additional CLI smoke validation:
+
+```sh
+node packages/core/dist/cli/index.js install-skill --agent=codex
+node packages/core/dist/cli/index.js install-skill --agent=codex
+```
+
+The smoke test was run in a temporary project with `sentiness.config.json`; the first run wrote `AGENTS.md` and the second run returned `changed: false`, confirming idempotent managed-section replacement through the built CLI.
+
+The final `sentiness check` report returned `summary.status: "ok"` with no findings. `pnpm sentiness doctor` currently exits `1` because this local checkout does not have the external `knip` and Stryker binaries installed; the command itself runs correctly and reports install suggestions.
 
 ## Known gaps and incomplete areas
 
 ### CLI gaps
 
-- `sentiness install-hooks` is missing.
-- `sentiness install-skill` is missing.
-- `doctor` currently lists registry load failures and registered checks, but it does not call each check's `detect()` yet.
+- No known CLI command gap remains from the Phase D/F command list.
 
 ### Baseline gaps
 
@@ -213,10 +258,8 @@ Missing check packages (Phase H):
 
 ### Adapter gaps
 
-- No `packages/adapters` package exists yet.
-- Shared skill template is missing.
-- Claude Code, Codex, and Gemini managed-section writers are missing.
-- Managed markers should use `<!-- sentiness:start -->` and `<!-- sentiness:end -->`.
+- Adapter package, template, and three managed-section writers are implemented.
+- E2E coverage for adapter installation is still missing and should land with Phase G.
 
 ### Test gaps
 
@@ -227,17 +270,14 @@ Missing check packages (Phase H):
 ## Recommended next steps
 
 1. **Finish CLI onboarding**
-   - Implement `sentiness install-hooks`.
-   - Upgrade `doctor` to call `detect()` for each enabled check.
+   - Add E2E coverage for `init`, `install-hooks`, `install-skill`, `doctor`, background jobs, and pending feedback.
 
-2. **Agent Adapters (Phase F)**
-   - Build the shared skill template.
-   - Add Claude Code, Codex, and Gemini writers.
-   - Wire `sentiness install-skill`.
-
-3. **Dogfooding & Polish**
+2. **Dogfooding & Polish**
    - Add E2E tests using `examples/demo-project`.
    - Add public README usage docs.
+
+3. **Deferred check packages**
+   - Implement dependency-cruiser, osv-scanner, lockfile-lint, deps-diff, jscpd, and semgrep when the core agent loop is covered by E2E.
 
 ## How to resume safely
 

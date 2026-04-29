@@ -4,6 +4,7 @@ dist/
 /packages/core/coverage/
 /packages/check-sdk/coverage/
 /packages/_test-utils/coverage/
+/packages/adapters/coverage/
 /packages/checks/*/coverage/
 .sentiness/jobs/
 .sentiness/cache/
