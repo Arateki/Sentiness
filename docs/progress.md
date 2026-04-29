@@ -41,7 +41,7 @@ The implementation should progress in usable slices, not by completing the whole
 7. **Phase G - Integration, docs, and polish**
    - Goal: harden behavior across realistic projects and document public usage.
    - Scope: E2E tests against `examples/demo-project`, public README/docs, complete JSON schema artifact, CI examples, and release packaging.
-   - Status: **partial**; T7.1 E2E full-flow tests now cover the built CLI against `examples/demo-project`, `doctor`, real Biome findings, background job status/result/pending feedback, baseline init suppression, direct hook installation, non-interactive `init`, `install-skill --agent=all`, and the committed report schema artifact. T7.2 public README/docs are now in place. CI examples, release packaging, and deeper baseline E2E coverage remain.
+   - Status: **partial**; T7.1 E2E full-flow tests now cover the built CLI against `examples/demo-project`, `doctor`, real Biome findings, background job status/result/pending feedback, baseline init suppression, baseline `accept`/`prune`, metric baseline `update`, direct hook installation/idempotency/error handling, non-interactive `init`, `install-skill --agent=all`, and the committed report schema artifact. T7.2 public README/docs are now in place. CI and release-package gates are wired. Optional docs-example validation remains.
 
 8. **Phase H - Additional check packages (Deferred)**
    - Goal: add the remaining heavier check packages.
@@ -128,7 +128,11 @@ Coverage:
 - A temporary copy of the demo project with a real Biome issue returns blocking findings and exit code `1`.
 - Background flow completes end to end: `check --background` returns `jobId`, `status <jobId>` reaches `completed`, `result.json` validates against `ReportSchema`, `pending --all` contains the unacked feedback item, and `pending ack` marks it acknowledged.
 - `baseline init` creates a structured baseline in a temporary Git project and subsequent `check` suppresses adopted findings.
+- `baseline accept` adds a current Biome finding fingerprint with an explicit reason, later `check` suppresses that fingerprint, and `baseline prune` removes it after the source finding is fixed.
+- `baseline update --metric=coverage.lineCoverage` ratchets a real Coverage metric from a controlled Istanbul `coverage-final.json` report.
 - `install-hooks --push` writes managed pre-commit and pre-push hook blocks in a target Git repository.
+- Re-running `install-hooks --push` keeps managed direct hooks idempotent and preserves a single backup of an existing unmanaged hook.
+- `install-hooks` outside a Git repository exits non-zero without writing hook files.
 - `init --yes --checks=biome --no-baseline` initializes a project through a deterministic non-interactive path.
 - `install-skill --agent=all` creates Claude Code, Codex, and Gemini instruction files and is idempotent on re-run.
 - The committed `packages/core/schema/report.schema.json` is non-empty and exposes useful top-level report contract properties.
@@ -152,6 +156,47 @@ Added the public documentation surface from `CLAUDE.md` Phase 7:
 - `docs/agent-skill.md` - supported agents, managed marker behavior, installed instruction contents, recommended agent workflow, reinstall triggers, and troubleshooting.
 
 The docs intentionally do not claim release packaging is complete. They distinguish this checkout's `pnpm sentiness ...` workflow from target projects where a `sentiness` binary is already available.
+
+### Baseline E2E polish
+
+The E2E full-flow suite now includes the remaining baseline CLI workflows:
+
+- `baseline accept` is exercised against a real Biome finding from the built CLI.
+- The accepted fingerprint is verified as absent from a later report and counted in baseline suppression.
+- `baseline prune` is verified after the source finding is fixed, preserving unrelated existing baseline entries.
+- `baseline update --metric=coverage.lineCoverage` is exercised against a controlled Coverage check project and verifies metric ratcheting from `50` to `100`.
+
+This required extending the E2E fixture helpers to link additional check packages and generate a minimal Istanbul `coverage-final.json`.
+
+### Hook E2E polish
+
+The E2E full-flow suite now includes direct hook edge cases:
+
+- An existing unmanaged `.git/hooks/pre-commit` is backed up once to `.bak`.
+- A second `install-hooks --push` run leaves managed pre-commit and pre-push hooks byte-for-byte unchanged.
+- Managed blocks are not duplicated across repeated direct-hook installations.
+- `install-hooks` outside a Git repository exits with code `1` and does not create hook files.
+
+### CI and release packaging
+
+Added a real GitHub Actions workflow at `.github/workflows/ci.yml` covering:
+
+- `pnpm install --frozen-lockfile`
+- `pnpm lint`
+- `pnpm typecheck`
+- `pnpm test`
+- `pnpm test:e2e`
+- `pnpm check:release-packages`
+- `pnpm sentiness check --tier=fast --compact`
+
+Release packaging is now guarded by `pnpm check:release-packages`, which rebuilds the workspace and validates the public package release allowlists for `@sentiness/check-sdk`, `@sentiness/adapters`, `@sentiness/core`, and the implemented check packages.
+
+Packaging fixes applied:
+
+- Public package `exports.types` now point at `./dist/index.d.ts` instead of source TypeScript.
+- Public packages declare `files` allowlists so source, tests, and coverage artifacts are not packed.
+- Check package builds clean `dist` before compiling, avoiding stale test artifacts.
+- Missing package READMEs were added for `@sentiness/core`, `@sentiness/check-coverage`, `@sentiness/check-knip`, and `@sentiness/check-stryker`.
 
 ---
 
@@ -267,6 +312,21 @@ pnpm sentiness check --tier=fast --compact
 git diff --check
 ```
 
+After baseline and hook E2E polish, the following commands passed:
+
+```sh
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm test:e2e
+pnpm sentiness check --tier=fast --compact
+git diff --check
+```
+
+`pnpm test:e2e` now passes with 13 tests.
+
+After CI/release packaging, `pnpm check:release-packages` passes for 7 public packages.
+
 `pnpm test:e2e` includes a full `pnpm build` before running the CLI E2E suite.
 
 Additional CLI smoke validation:
@@ -321,14 +381,14 @@ Missing check packages (Phase H):
 
 ### Test gaps
 
-- E2E full-flow suite exists for `doctor`, `check`, blocking findings, background status/result/pending feedback/ack, baseline init suppression, `install-hooks`, non-interactive `init`, `install-skill`, and the generated report schema artifact.
-- Remaining E2E gaps: deeper baseline workflows (`update`, `accept`, `prune`), hook idempotency/error cases, CI examples, release packaging, and optional validation that public docs command examples stay current.
+- E2E full-flow suite exists for `doctor`, `check`, blocking findings, background status/result/pending feedback/ack, baseline init suppression, baseline `update`/`accept`/`prune`, `install-hooks` including direct-hook idempotency/error cases, non-interactive `init`, `install-skill`, and the generated report schema artifact.
+- Remaining E2E gap: optional validation that public docs command examples stay current.
 
 ## Recommended next steps
 
 1. **Remaining T7 polish**
-   - Add deeper E2E coverage for baseline `update`, `accept`, and `prune`.
-   - Add public docs example validation, CI examples, and release packaging checks.
+   - Add public docs example validation.
+   - Decide whether to start Phase H check packages or tighten diff precision first.
 
 2. **Deferred check packages**
    - Implement dependency-cruiser, osv-scanner, lockfile-lint, deps-diff, jscpd, and semgrep when the core agent loop is covered by E2E.

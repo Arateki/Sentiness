@@ -15,8 +15,13 @@ const repoRoot = resolve(here, '../../../..');
 const demoProject = join(repoRoot, 'examples/demo-project');
 const cliPath = join(repoRoot, 'packages/core/dist/cli/index.js');
 const rootBinPath = join(repoRoot, 'node_modules/.bin');
-const biomeCheckPackage = join(repoRoot, 'packages/checks/biome');
+const checkPackages = {
+  biome: join(repoRoot, 'packages/checks/biome'),
+  coverage: join(repoRoot, 'packages/checks/coverage'),
+} as const;
 const execFileAsync = promisify(execFile);
+
+type CheckPackageId = keyof typeof checkPackages;
 
 type CliResult = {
   readonly exitCode: number | null;
@@ -58,7 +63,19 @@ const PendingItemsSchema = z.array(
 const BaselineSnapshotSchema = z.object({
   schemaVersion: z.literal('1.0'),
   createdAtCommit: z.string().min(1),
-  suppressed: z.array(z.object({ fingerprint: z.string().regex(/^[a-f0-9]{64}$/) })),
+  suppressed: z.array(
+    z.object({
+      fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+      reason: z.string().optional(),
+    }),
+  ),
+  metrics: z.record(
+    z.string(),
+    z.object({
+      value: z.number(),
+      direction: z.enum(['higher-is-better', 'lower-is-better']),
+    }),
+  ),
 });
 
 const cleanupPaths: string[] = [];
@@ -103,7 +120,10 @@ function parseJson(stdout: string): unknown {
   return JSON.parse(stdout.trim());
 }
 
-async function createDemoCopy(source: string): Promise<string> {
+async function createDemoCopy(
+  source: string,
+  checks: readonly CheckPackageId[] = ['biome'],
+): Promise<string> {
   const tempRoot = await mkdtemp(join(tmpdir(), 'sentiness-e2e-'));
   cleanupPaths.push(tempRoot);
   const projectDir = join(tempRoot, 'demo-project');
@@ -112,9 +132,37 @@ async function createDemoCopy(source: string): Promise<string> {
 
   const sentinessScope = join(projectDir, 'node_modules/@sentiness');
   await mkdir(sentinessScope, { recursive: true });
-  await symlink(biomeCheckPackage, join(sentinessScope, 'check-biome'), 'dir');
+  for (const check of checks) {
+    await symlink(checkPackages[check], join(sentinessScope, `check-${check}`), 'dir');
+  }
 
   return projectDir;
+}
+
+async function writeCoverageReport(projectDir: string, hits: readonly [number, number]) {
+  const coverageDir = join(projectDir, 'coverage');
+  const sourcePath = join(projectDir, 'src/index.ts');
+  await mkdir(coverageDir, { recursive: true });
+  await writeFile(
+    join(coverageDir, 'coverage-final.json'),
+    `${JSON.stringify(
+      {
+        [sourcePath]: {
+          path: sourcePath,
+          statementMap: {
+            '0': { start: { line: 1 }, end: { line: 1 } },
+            '1': { start: { line: 2 }, end: { line: 2 } },
+          },
+          s: {
+            '0': hits[0],
+            '1': hits[1],
+          },
+        },
+      },
+      null,
+      2,
+    )}\n`,
+  );
 }
 
 async function createEmptyProject(): Promise<string> {
@@ -263,6 +311,120 @@ describe('Sentiness CLI E2E full flow', () => {
     expect(report.baseline.suppressedFindings).toBeGreaterThan(0);
   });
 
+  it('accepts and prunes baseline findings through the built CLI', async () => {
+    const cleanSource = 'export const value = 1;\n';
+    const projectDir = await createDemoCopy(cleanSource);
+    await initGitRepo(projectDir);
+
+    const init = await runCli(projectDir, ['baseline', 'init']);
+    const initialBaseline = BaselineSnapshotSchema.parse(
+      parseJson(await readFile(join(projectDir, '.sentiness/baseline.json'), 'utf8')),
+    );
+    const initialFingerprints = initialBaseline.suppressed.map((entry) => entry.fingerprint);
+    await writeFile(join(projectDir, 'src/index.ts'), 'const unused = 1\n');
+
+    const check = await runCli(projectDir, ['check', '--tier=fast', '--compact']);
+    const report = ReportSchema.parse(parseJson(check.stdout));
+    const fingerprint = report.checks[0]?.findings[0]?.fingerprint;
+
+    expect(init.exitCode).toBe(0);
+    expect(check.exitCode).toBe(1);
+    expect(fingerprint).toMatch(/^[a-f0-9]{64}$/);
+    expect(initialFingerprints).not.toContain(fingerprint);
+
+    const accept = await runCli(projectDir, [
+      'baseline',
+      'accept',
+      `--fingerprint=${fingerprint ?? ''}`,
+      '--reason=accepted for e2e coverage',
+    ]);
+    const acceptedBaseline = BaselineSnapshotSchema.parse(
+      parseJson(await readFile(join(projectDir, '.sentiness/baseline.json'), 'utf8')),
+    );
+    const suppressed = ReportSchema.parse(
+      parseJson((await runCli(projectDir, ['check', '--tier=fast', '--compact'])).stdout),
+    );
+
+    expect(accept.exitCode).toBe(0);
+    expect(acceptedBaseline.suppressed).toHaveLength(initialBaseline.suppressed.length + 1);
+    expect(acceptedBaseline.suppressed).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fingerprint,
+          reason: 'accepted for e2e coverage',
+        }),
+      ]),
+    );
+    expect(
+      suppressed.checks
+        .flatMap((checkResult) => checkResult.findings)
+        .map((finding) => finding.fingerprint),
+    ).not.toContain(fingerprint);
+    expect(suppressed.baseline.suppressedFindings).toBeGreaterThan(0);
+
+    await writeFile(join(projectDir, 'src/index.ts'), cleanSource);
+    const prune = await runCli(projectDir, ['baseline', 'prune']);
+    const prunedBaseline = BaselineSnapshotSchema.parse(
+      parseJson(await readFile(join(projectDir, '.sentiness/baseline.json'), 'utf8')),
+    );
+
+    expect(prune.exitCode).toBe(0);
+    expect(prunedBaseline.suppressed.map((entry) => entry.fingerprint)).toEqual(
+      initialFingerprints,
+    );
+  });
+
+  it('ratchets metric baselines through baseline update', async () => {
+    const projectDir = await createDemoCopy('export const value = 1;\nexport const other = 2;\n', [
+      'coverage',
+    ]);
+    await writeFile(
+      join(projectDir, 'sentiness.config.json'),
+      `${JSON.stringify(
+        {
+          schemaVersion: '1.0',
+          checks: {
+            coverage: {
+              enabled: true,
+              tier: 'slow',
+              thresholds: { lineCoverage: 0 },
+            },
+          },
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    await writeCoverageReport(projectDir, [1, 0]);
+    await initGitRepo(projectDir);
+
+    const init = await runCli(projectDir, ['baseline', 'init']);
+    const initialBaseline = BaselineSnapshotSchema.parse(
+      parseJson(await readFile(join(projectDir, '.sentiness/baseline.json'), 'utf8')),
+    );
+
+    await writeCoverageReport(projectDir, [1, 1]);
+    const update = await runCli(projectDir, [
+      'baseline',
+      'update',
+      '--metric=coverage.lineCoverage',
+    ]);
+    const updatedBaseline = BaselineSnapshotSchema.parse(
+      parseJson(await readFile(join(projectDir, '.sentiness/baseline.json'), 'utf8')),
+    );
+
+    expect(init.exitCode).toBe(0);
+    expect(initialBaseline.metrics['coverage.lineCoverage']).toEqual({
+      value: 50,
+      direction: 'higher-is-better',
+    });
+    expect(update.exitCode).toBe(0);
+    expect(updatedBaseline.metrics['coverage.lineCoverage']).toEqual({
+      value: 100,
+      direction: 'higher-is-better',
+    });
+  });
+
   it('installs direct Git hooks in a target repository', async () => {
     const projectDir = await createDemoCopy('let value = 1;\nvalue = value + 1;\n');
     await initGitRepo(projectDir);
@@ -275,6 +437,41 @@ describe('Sentiness CLI E2E full flow', () => {
     expect(preCommit).toContain('# sentiness:start');
     expect(preCommit).toContain('npx sentiness check --tier=fast --trigger=pre-commit');
     expect(prePush).toContain('npx sentiness check --tier=slow --trigger=pre-push');
+  });
+
+  it('updates direct Git hooks idempotently without replacing unmanaged hooks twice', async () => {
+    const projectDir = await createDemoCopy('export const value = 1;\n');
+    await initGitRepo(projectDir);
+    await writeFile(join(projectDir, '.git/hooks/pre-commit'), '#!/bin/sh\necho user hook\n');
+
+    const first = await runCli(projectDir, ['install-hooks', '--push']);
+    const firstPreCommit = await readFile(join(projectDir, '.git/hooks/pre-commit'), 'utf8');
+    const firstPrePush = await readFile(join(projectDir, '.git/hooks/pre-push'), 'utf8');
+    const backupAfterFirst = await readFile(join(projectDir, '.git/hooks/pre-commit.bak'), 'utf8');
+
+    const second = await runCli(projectDir, ['install-hooks', '--push']);
+    const secondPreCommit = await readFile(join(projectDir, '.git/hooks/pre-commit'), 'utf8');
+    const secondPrePush = await readFile(join(projectDir, '.git/hooks/pre-push'), 'utf8');
+    const backupAfterSecond = await readFile(join(projectDir, '.git/hooks/pre-commit.bak'), 'utf8');
+
+    expect(first.exitCode).toBe(0);
+    expect(second.exitCode).toBe(0);
+    expect(backupAfterFirst).toContain('echo user hook');
+    expect(backupAfterSecond).toBe(backupAfterFirst);
+    expect(firstPreCommit.match(/# sentiness:start/g)).toHaveLength(1);
+    expect(firstPrePush.match(/# sentiness:start/g)).toHaveLength(1);
+    expect(secondPreCommit).toBe(firstPreCommit);
+    expect(secondPrePush).toBe(firstPrePush);
+  });
+
+  it('fails hook installation outside a Git repository', async () => {
+    const projectDir = await createEmptyProject();
+
+    const result = await runCli(projectDir, ['install-hooks']);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toBe('');
+    await expect(readFile(join(projectDir, '.git/hooks/pre-commit'), 'utf8')).rejects.toThrow();
   });
 
   it('initializes a new project through the non-interactive wizard path', async () => {

@@ -117,7 +117,12 @@ pnpm test
 pnpm test:e2e
 pnpm lint
 pnpm --filter @sentiness/core generate-schema
+pnpm check:release-packages
 ```
 
 `pnpm test:e2e` builds the workspace first and then runs the built CLI against
 `examples/demo-project`.
+
+`pnpm check:release-packages` rebuilds the workspace and verifies that publishable packages expose
+`dist` type/runtime entries and do not include source, tests, or coverage artifacts in their release
+allowlist.

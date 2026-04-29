@@ -9,6 +9,7 @@
   },
   "scripts": {
     "build": "pnpm -r build",
+    "check:release-packages": "pnpm build && node scripts/check-release-packages.mjs",
     "test": "pnpm -r test",
     "test:e2e": "pnpm build && pnpm --filter @sentiness/core test:e2e",
     "lint": "biome check .",

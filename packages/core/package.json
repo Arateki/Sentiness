@@ -2,6 +2,11 @@
   "name": "@sentiness/core",
   "version": "0.1.0",
   "type": "module",
+  "files": [
+    "dist",
+    "schema/report.schema.json",
+    "README.md"
+  ],
   "bin": {
     "sentiness": "./dist/cli/index.js"
   },
@@ -12,7 +17,7 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node ../../scripts/clean-dist.mjs && tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --config ../../vitest.config.base.ts src",
     "test:e2e": "vitest run --config ../../vitest.config.base.ts test/e2e",
