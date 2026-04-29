@@ -41,7 +41,7 @@ The implementation should progress in usable slices, not by completing the whole
 7. **Phase G - Integration, docs, and polish**
    - Goal: harden behavior across realistic projects and document public usage.
    - Scope: E2E tests against `examples/demo-project`, public README/docs, complete JSON schema artifact, CI examples, and release packaging.
-   - Status: **partial**; T7.1 E2E full-flow tests now cover the built CLI against `examples/demo-project`, `doctor`, real Biome findings, background job status/result/pending feedback, baseline init suppression, baseline `accept`/`prune`, metric baseline `update`, direct hook installation/idempotency/error handling, non-interactive `init`, `install-skill --agent=all`, and the committed report schema artifact. T7.2 public README/docs are now in place. CI and release-package gates are wired. Optional docs-example validation remains.
+   - Status: **done**; T7.1 E2E full-flow tests now cover the built CLI against `examples/demo-project`, `doctor`, real Biome findings, background job status/result/pending feedback, baseline init suppression, baseline `accept`/`prune`, metric baseline `update`, direct hook installation/idempotency/error handling, non-interactive `init`, `install-skill --agent=all`, and the committed report schema artifact. T7.2 public README/docs are in place, CI and release-package gates are wired, and public CLI examples are validated against the registered command surface.
 
 8. **Phase H - Additional check packages (Deferred)**
    - Goal: add the remaining heavier check packages.
@@ -72,8 +72,8 @@ A post-implementation audit identified a set of bugs and spec gaps that were add
 |----|------|--------|
 | §4.1 | `--trend` now has real semantics: `applyBaselineToOutcome` suppresses all findings when `mode === 'trend'`, leaving only metric regressions visible. `baselineApplied` is `false` in this mode. New test in `diff-filter.test.ts`. | **Done** |
 | §4.5 | `'platform'` category is now documented in `CLAUDE.md` §T0.2 `Category` type and in Appendix A `checks[]` field. | **Done** |
-| §4.2 | `SENTINESS_VERSION` is still hardcoded `'0.1.0'` in `packages/core/src/version.ts` | Open |
-| §4.3 | No property-based tests for `applyBaseline` / `applyBaselineToOutcome` idempotency | Open |
+| §4.2 | `SENTINESS_VERSION` is now derived from `packages/core/package.json` at runtime and covered by `version.test.ts`, avoiding a duplicated release literal. | **Done** |
+| §4.3 | Property-based tests now verify `applyBaseline` and `applyBaselineToOutcome` idempotency across random finding/baseline/diff combinations. | **Done** |
 | §4.4 | `install-hooks` command exists but is marked as a known gap above | **Done** |
 | §4.6 | `doctor` does not yet call each check's `detect()` | **Done** |
 | §4.7 | No E2E tests yet | **Done** |
@@ -348,8 +348,8 @@ The final `sentiness check` report returned `summary.status: "ok"` with no findi
 
 ### Baseline gaps
 
-- Baseline saves are atomic (TODO).
-- Deeper baseline JSON validation and property-based regression tests (TODO).
+- Baseline saves are atomic via temp-file write plus rename.
+- Baseline JSON loading is validated with Zod; property-based regression coverage now exists for baseline/diff filtering idempotency.
 
 ### Diff gaps
 
@@ -361,7 +361,7 @@ The final `sentiness check` report returned `summary.status: "ok"` with no findi
 
 - The Zod `ReportSchema` in `packages/core/src/schema/report.ts` is the real runtime schema today.
 - `packages/core/schema/report.schema.json` is now automatically generated from the built Zod schema via `z.toJSONSchema()` and formatted by the generation script.
-- The schema should get deeper regression tests that validate sample reports with a real JSON Schema validator, not only the current E2E smoke check for a useful artifact shape.
+- The committed schema artifact now has regression tests that validate representative reports and negative cases against the generated JSON Schema shape without adding a network-fetched validator dependency.
 
 ### Check package gaps
 
@@ -382,13 +382,12 @@ Missing check packages (Phase H):
 ### Test gaps
 
 - E2E full-flow suite exists for `doctor`, `check`, blocking findings, background status/result/pending feedback/ack, baseline init suppression, baseline `update`/`accept`/`prune`, `install-hooks` including direct-hook idempotency/error cases, non-interactive `init`, `install-skill`, and the generated report schema artifact.
-- Remaining E2E gap: optional validation that public docs command examples stay current.
+- Unit/property coverage now includes runtime package-version derivation, baseline/diff idempotency, deeper public report-schema artifact validation, and public docs CLI example validation.
 
 ## Recommended next steps
 
-1. **Remaining T7 polish**
-   - Add public docs example validation.
-   - Decide whether to start Phase H check packages or tighten diff precision first.
+1. **Next product decision**
+   - Decide whether to start Phase H check packages or tighten `--diff` precision first.
 
 2. **Deferred check packages**
    - Implement dependency-cruiser, osv-scanner, lockfile-lint, deps-diff, jscpd, and semgrep when the core agent loop is covered by E2E.

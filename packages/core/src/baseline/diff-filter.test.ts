@@ -1,4 +1,5 @@
 import { asCheckId, asRuleId, type CheckResult, type Finding } from '@sentiness/check-sdk';
+import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import type { RunOutcome } from '../runner/runner.js';
 import type { BaselineSnapshot } from './baseline.js';
@@ -20,22 +21,61 @@ function makeFinding(fingerprint: string, file: string): Finding {
 }
 
 function makeBaseline(fingerprint: string): BaselineSnapshot {
+  return makeBaselineFromFingerprints([fingerprint]);
+}
+
+function makeBaselineFromFingerprints(fingerprints: readonly string[]): BaselineSnapshot {
   return {
     schemaVersion: '1.0',
     createdAt: '2024-01-01T00:00:00.000Z',
     createdAtCommit: 'sha',
-    suppressed: [
-      {
-        checkId,
-        ruleId,
-        fingerprint,
-        location: { file: 'src/old.ts' },
-        addedAt: '2024-01-01T00:00:00.000Z',
-        reason: 'existing issue',
-      },
-    ],
+    suppressed: [...new Set(fingerprints)].map((fingerprint, index) => ({
+      checkId,
+      ruleId,
+      fingerprint,
+      location: { file: `src/baseline-${index}.ts` },
+      addedAt: '2024-01-01T00:00:00.000Z',
+      reason: 'existing issue',
+    })),
     metrics: {},
   };
+}
+
+const fingerprintArbitrary = fc
+  .integer({ min: 0, max: Number.MAX_SAFE_INTEGER })
+  .map((value) => value.toString(16).padStart(64, '0'));
+const fileArbitrary = fc.constantFrom('src/old.ts', 'src/new.ts', 'src/other.ts');
+const findingArbitrary = fc
+  .record({
+    fingerprint: fingerprintArbitrary,
+    file: fileArbitrary,
+  })
+  .map(({ fingerprint, file }) => makeFinding(fingerprint, file));
+const changedFilesArbitrary = fc
+  .array(fileArbitrary, { maxLength: 3 })
+  .map((files) => [...new Set(files)]);
+
+function makeOutcomeWithContext(
+  result: CheckResult,
+  changedFiles: readonly string[],
+  diffOnly: boolean,
+): RunOutcome {
+  return {
+    ...makeOutcome(result),
+    context: {
+      cwd: '/project',
+      tier: 'fast',
+      trigger: null,
+      mode: diffOnly ? 'diff' : 'full',
+      baseRef: diffOnly ? 'HEAD' : null,
+      headRef: 'HEAD',
+      changedFiles,
+    },
+  };
+}
+
+function resultFindings(outcome: RunOutcome): readonly Finding[] {
+  return outcome.results.get(checkId)?.findings ?? [];
 }
 
 function makeOutcome(result: CheckResult): RunOutcome {
@@ -172,5 +212,57 @@ describe('diff-filter', () => {
     expect(application.metricRegressions).toEqual([
       { metric: 'fake.score', baselineValue: 90, currentValue: 80, direction: 'higher-is-better' },
     ]);
+  });
+
+  it('is idempotent when applying a baseline to already-filtered findings', () => {
+    fc.assert(
+      fc.property(
+        fc.array(findingArbitrary, { maxLength: 12 }),
+        fc.array(fingerprintArbitrary, { maxLength: 8 }),
+        changedFilesArbitrary,
+        fc.boolean(),
+        (findings, suppressedFingerprints, changedFiles, diffOnly) => {
+          const baseline = makeBaselineFromFingerprints(suppressedFingerprints);
+          const once = applyBaseline(findings, baseline, changedFiles, diffOnly);
+          const twice = applyBaseline(once.findings, baseline, changedFiles, diffOnly);
+
+          expect(twice.findings).toEqual(once.findings);
+          expect(twice.suppressedCount).toBe(0);
+          expect(twice.newInDiff).toEqual(once.newInDiff);
+        },
+      ),
+    );
+  });
+
+  it('is idempotent when applying a baseline to an already-filtered outcome', () => {
+    fc.assert(
+      fc.property(
+        fc.array(findingArbitrary, { maxLength: 12 }),
+        fc.array(fingerprintArbitrary, { maxLength: 8 }),
+        changedFilesArbitrary,
+        fc.boolean(),
+        (findings, suppressedFingerprints, changedFiles, diffOnly) => {
+          const baseline = makeBaselineFromFingerprints(suppressedFingerprints);
+          const result: CheckResult = {
+            status: findings.length > 0 ? 'violations' : 'ok',
+            findings,
+            durationMs: 1,
+          };
+          const outcome = makeOutcomeWithContext(result, changedFiles, diffOnly);
+          const once = applyBaselineToOutcome(outcome, baseline, {
+            baselinePath: '/project/.sentiness/baseline.json',
+            diffOnly,
+          });
+          const twice = applyBaselineToOutcome(once.outcome, baseline, {
+            baselinePath: '/project/.sentiness/baseline.json',
+            diffOnly,
+          });
+
+          expect(resultFindings(twice.outcome)).toEqual(resultFindings(once.outcome));
+          expect(twice.suppressedCount).toBe(0);
+          expect(twice.metricRegressions).toEqual(once.metricRegressions);
+        },
+      ),
+    );
   });
 });
