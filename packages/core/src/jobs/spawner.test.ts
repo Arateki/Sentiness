@@ -53,4 +53,24 @@ describe('JobSpawner (Unit)', () => {
     // Verify file descriptors were closed
     expect(mockClose).toHaveBeenCalledTimes(2);
   });
+
+  it('should throw if spawn fails and child.pid is undefined', async () => {
+    const fs = new InMemoryFileSystem();
+    const clock = new FixedClock(1714348800000);
+    const spawner = new JobSpawner('/jobs', fs, clock);
+
+    vi.mocked(spawn).mockReturnValue({
+      pid: undefined,
+      unref: vi.fn(),
+    } as unknown as ReturnType<typeof spawn>);
+
+    vi.mocked(open).mockResolvedValue({
+      fd: 99,
+      close: vi.fn(),
+    } as unknown as import('node:fs/promises').FileHandle);
+
+    await expect(
+      spawner.spawn('echo', ['hello'], { cwd: '/project', tier: 'slow' }),
+    ).rejects.toThrow('Failed to spawn child process for command: echo');
+  });
 });
