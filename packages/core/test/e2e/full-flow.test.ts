@@ -1,9 +1,10 @@
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { JobMetaSchema } from '../../src/jobs/types.js';
@@ -15,6 +16,7 @@ const demoProject = join(repoRoot, 'examples/demo-project');
 const cliPath = join(repoRoot, 'packages/core/dist/cli/index.js');
 const rootBinPath = join(repoRoot, 'node_modules/.bin');
 const biomeCheckPackage = join(repoRoot, 'packages/checks/biome');
+const execFileAsync = promisify(execFile);
 
 type CliResult = {
   readonly exitCode: number | null;
@@ -23,6 +25,17 @@ type CliResult = {
 };
 
 const JobIdSchema = z.object({ jobId: z.string().min(1) });
+const DoctorResultSchema = z.object({
+  ok: z.boolean(),
+  checks: z.array(
+    z.object({
+      id: z.string(),
+      available: z.boolean(),
+      version: z.string().optional(),
+    }),
+  ),
+  loadFailures: z.array(z.unknown()),
+});
 const InstallSkillResultSchema = z.object({
   results: z.array(
     z.object({
@@ -42,6 +55,11 @@ const PendingItemsSchema = z.array(
     acked: z.boolean(),
   }),
 );
+const BaselineSnapshotSchema = z.object({
+  schemaVersion: z.literal('1.0'),
+  createdAtCommit: z.string().min(1),
+  suppressed: z.array(z.object({ fingerprint: z.string().regex(/^[a-f0-9]{64}$/) })),
+});
 
 const cleanupPaths: string[] = [];
 
@@ -57,12 +75,12 @@ function cliEnv(): NodeJS.ProcessEnv {
   };
 }
 
-async function runCli(cwd: string, args: readonly string[]): Promise<CliResult> {
+async function runCli(cwd: string, args: readonly string[], input = ''): Promise<CliResult> {
   return new Promise((resolveResult, reject) => {
     const child = spawn(process.execPath, [cliPath, ...args], {
       cwd,
       env: cliEnv(),
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: ['pipe', 'pipe', 'pipe'],
     });
 
     const stdoutChunks: Buffer[] = [];
@@ -77,6 +95,7 @@ async function runCli(cwd: string, args: readonly string[]): Promise<CliResult> 
         stderr: Buffer.concat(stderrChunks).toString('utf8'),
       });
     });
+    child.stdin.end(input);
   });
 }
 
@@ -98,6 +117,39 @@ async function createDemoCopy(source: string): Promise<string> {
   return projectDir;
 }
 
+async function createEmptyProject(): Promise<string> {
+  const projectDir = await mkdtemp(join(tmpdir(), 'sentiness-e2e-empty-'));
+  cleanupPaths.push(projectDir);
+  await writeFile(
+    join(projectDir, 'package.json'),
+    `${JSON.stringify(
+      {
+        name: 'empty-project',
+        private: true,
+        type: 'module',
+        devDependencies: {
+          '@biomejs/biome': 'latest',
+          '@sentiness/check-biome': 'workspace:*',
+          typescript: 'latest',
+        },
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  return projectDir;
+}
+
+async function initGitRepo(projectDir: string): Promise<void> {
+  await execFileAsync('git', ['init'], { cwd: projectDir });
+  await execFileAsync('git', ['add', '.'], { cwd: projectDir });
+  await execFileAsync(
+    'git',
+    ['-c', 'user.name=Sentiness E2E', '-c', 'user.email=e2e@example.test', 'commit', '-m', 'init'],
+    { cwd: projectDir },
+  );
+}
+
 async function pollJob(projectDir: string, jobId: string): Promise<z.infer<typeof JobMetaSchema>> {
   for (let attempt = 0; attempt < 30; attempt++) {
     const status = await runCli(projectDir, ['status', jobId]);
@@ -112,6 +164,22 @@ async function pollJob(projectDir: string, jobId: string): Promise<z.infer<typeo
 }
 
 describe('Sentiness CLI E2E full flow', () => {
+  it('diagnoses configured checks through doctor', async () => {
+    const result = await runCli(demoProject, ['doctor']);
+    const doctor = DoctorResultSchema.parse(parseJson(result.stdout));
+
+    expect(result.exitCode).toBe(0);
+    expect(doctor.ok).toBe(true);
+    expect(doctor.loadFailures).toEqual([]);
+    expect(doctor.checks).toEqual([
+      expect.objectContaining({
+        id: 'biome',
+        available: true,
+      }),
+    ]);
+    expect(doctor.checks[0]?.version).toContain('Version:');
+  });
+
   it('runs the built CLI against the demo project', async () => {
     const result = await runCli(demoProject, ['check', '--tier=fast', '--compact']);
     const report = ReportSchema.parse(parseJson(result.stdout));
@@ -163,6 +231,64 @@ describe('Sentiness CLI E2E full flow', () => {
     expect(pendingItems).toHaveLength(1);
     expect(pendingItems[0]?.jobId).toBe(jobId);
     expect(pendingItems[0]?.acked).toBe(false);
+
+    const pendingId = pendingItems[0]?.id;
+    expect(pendingId).toBeDefined();
+    const ack = await runCli(projectDir, ['pending', 'ack', pendingId ?? '']);
+    const afterAck = PendingItemsSchema.parse(
+      parseJson((await runCli(projectDir, ['pending', '--all'])).stdout),
+    );
+
+    expect(ack.exitCode).toBe(0);
+    expect(afterAck[0]?.acked).toBe(true);
+  });
+
+  it('creates a baseline that suppresses adopted findings', async () => {
+    const projectDir = await createDemoCopy('const unused = 1\n');
+    await writeFile(join(projectDir, '.gitignore'), '.sentiness/\n');
+    await initGitRepo(projectDir);
+
+    const init = await runCli(projectDir, ['baseline', 'init']);
+    const baselineText = await readFile(join(projectDir, '.sentiness/baseline.json'), 'utf8');
+    const baseline = BaselineSnapshotSchema.parse(parseJson(baselineText));
+    const check = await runCli(projectDir, ['check', '--tier=fast', '--compact']);
+    const report = ReportSchema.parse(parseJson(check.stdout));
+
+    expect(init.exitCode).toBe(0);
+    expect(baseline.createdAtCommit).toMatch(/^[a-f0-9]{40}$/);
+    expect(baseline.suppressed.length).toBeGreaterThan(0);
+    expect(check.exitCode).toBe(0);
+    expect(report.summary.status).toBe('ok');
+    expect(report.baseline.applied).toBe(true);
+    expect(report.baseline.suppressedFindings).toBeGreaterThan(0);
+  });
+
+  it('installs direct Git hooks in a target repository', async () => {
+    const projectDir = await createDemoCopy('let value = 1;\nvalue = value + 1;\n');
+    await initGitRepo(projectDir);
+
+    const result = await runCli(projectDir, ['install-hooks', '--push']);
+    const preCommit = await readFile(join(projectDir, '.git/hooks/pre-commit'), 'utf8');
+    const prePush = await readFile(join(projectDir, '.git/hooks/pre-push'), 'utf8');
+
+    expect(result.exitCode).toBe(0);
+    expect(preCommit).toContain('# sentiness:start');
+    expect(preCommit).toContain('npx sentiness check --tier=fast --trigger=pre-commit');
+    expect(prePush).toContain('npx sentiness check --tier=slow --trigger=pre-push');
+  });
+
+  it('initializes a new project through the non-interactive wizard path', async () => {
+    const projectDir = await createEmptyProject();
+
+    const result = await runCli(projectDir, ['init', '--yes', '--checks=biome', '--no-baseline']);
+    const config = JSON.parse(await readFile(join(projectDir, 'sentiness.config.json'), 'utf8'));
+    const gitignore = await readFile(join(projectDir, '.gitignore'), 'utf8');
+
+    expect(result.exitCode).toBe(0);
+    expect(config.checks).toEqual({ biome: { enabled: true, tier: 'fast' } });
+    expect(config.reporting.omitOk).toBe(true);
+    expect(gitignore).toContain('.sentiness/jobs/');
+    expect(gitignore).toContain('.sentiness/pending-feedback.json');
   });
 
   it('installs agent instruction sections idempotently from the built CLI', async () => {
@@ -186,6 +312,25 @@ describe('Sentiness CLI E2E full flow', () => {
     );
     await expect(readFile(join(projectDir, 'GEMINI.md'), 'utf8')).resolves.toContain(
       '<!-- sentiness:end -->',
+    );
+  });
+
+  it('keeps the committed public report JSON schema useful', async () => {
+    const schemaText = await readFile(
+      join(repoRoot, 'packages/core/schema/report.schema.json'),
+      'utf8',
+    );
+    const schema = z
+      .object({
+        type: z.literal('object'),
+        required: z.array(z.string()),
+        properties: z.record(z.string(), z.unknown()),
+      })
+      .parse(parseJson(schemaText));
+
+    expect(schema.required).toContain('schemaVersion');
+    expect(Object.keys(schema.properties)).toEqual(
+      expect.arrayContaining(['schemaVersion', 'summary', 'checks', 'agentInstructions']),
     );
   });
 });

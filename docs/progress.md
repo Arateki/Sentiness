@@ -41,7 +41,7 @@ The implementation should progress in usable slices, not by completing the whole
 7. **Phase G - Integration, docs, and polish**
    - Goal: harden behavior across realistic projects and document public usage.
    - Scope: E2E tests against `examples/demo-project`, public README/docs, complete JSON schema artifact, CI examples, and release packaging.
-   - Status: **partial**; T7.1 E2E full-flow tests now cover the built CLI against `examples/demo-project`, real Biome findings, background job status/result/pending feedback, and `install-skill --agent=all`.
+   - Status: **partial**; T7.1 E2E full-flow tests now cover the built CLI against `examples/demo-project`, `doctor`, real Biome findings, background job status/result/pending feedback, baseline init suppression, direct hook installation, non-interactive `init`, `install-skill --agent=all`, and the committed report schema artifact. T7.2 public docs, CI examples, and release packaging remain.
 
 8. **Phase H - Additional check packages (Deferred)**
    - Goal: add the remaining heavier check packages.
@@ -76,7 +76,7 @@ A post-implementation audit identified a set of bugs and spec gaps that were add
 | §4.3 | No property-based tests for `applyBaseline` / `applyBaselineToOutcome` idempotency | Open |
 | §4.4 | `install-hooks` command exists but is marked as a known gap above | **Done** |
 | §4.6 | `doctor` does not yet call each check's `detect()` | **Done** |
-| §4.7 | No E2E tests yet | Open |
+| §4.7 | No E2E tests yet | **Done** |
 | §4.8 | No adapter packages yet | **Done** |
 
 ---
@@ -124,11 +124,22 @@ pnpm test:e2e
 Coverage:
 
 - Built CLI runs `check --tier=fast --compact` against `examples/demo-project`.
+- `doctor` loads and detects the configured Biome check inside the demo project.
 - A temporary copy of the demo project with a real Biome issue returns blocking findings and exit code `1`.
-- Background flow completes end to end: `check --background` returns `jobId`, `status <jobId>` reaches `completed`, `result.json` validates against `ReportSchema`, and `pending --all` contains the unacked feedback item.
+- Background flow completes end to end: `check --background` returns `jobId`, `status <jobId>` reaches `completed`, `result.json` validates against `ReportSchema`, `pending --all` contains the unacked feedback item, and `pending ack` marks it acknowledged.
+- `baseline init` creates a structured baseline in a temporary Git project and subsequent `check` suppresses adopted findings.
+- `install-hooks --push` writes managed pre-commit and pre-push hook blocks in a target Git repository.
+- `init --yes --checks=biome --no-baseline` initializes a project through a deterministic non-interactive path.
 - `install-skill --agent=all` creates Claude Code, Codex, and Gemini instruction files and is idempotent on re-run.
+- The committed `packages/core/schema/report.schema.json` is non-empty and exposes useful top-level report contract properties.
 
 The E2E suite found and fixed a real CLI process bug: JSON output could be lost when stdout was captured by another process. The CLI entrypoint now writes command stdout through `writeSync(process.stdout.fd, text)`, keeping command handlers unchanged while making subprocess capture deterministic.
+
+Additional defects found and fixed while broadening T7.1:
+
+- Baseline adoption could make later Biome checks fail on Sentiness runtime files such as `.sentiness/baseline.json`; the Biome check now ignores `.sentiness/` paths.
+- `sentiness init` was hard to test safely because the wizard only had an interactive path; it now supports `--yes`, `--checks=<ids>`, and `--no-baseline`.
+- The committed JSON schema artifact was effectively empty because the old `zod-to-json-schema` path did not produce a useful schema for the current Zod runtime. Schema generation now uses Zod's `toJSONSchema()` from the built runtime schema and formats the generated artifact with Biome.
 
 ---
 
@@ -222,16 +233,18 @@ All implemented check packages follow the same structure: `detect`, `run`, `norm
 
 ## Current validation status
 
-The following commands passed after Phase F adapters were added:
+The following commands passed after Phase G T7.1 broadening:
 
 ```sh
+pnpm --filter @sentiness/core generate-schema
+pnpm lint
 pnpm typecheck
-pnpm build
 pnpm test
 pnpm test:e2e
-pnpm lint
 pnpm sentiness check --tier=fast --compact
 ```
+
+`pnpm test:e2e` includes a full `pnpm build` before running the CLI E2E suite.
 
 Additional CLI smoke validation:
 
@@ -264,8 +277,8 @@ The final `sentiness check` report returned `summary.status: "ok"` with no findi
 ### Report/schema gaps
 
 - The Zod `ReportSchema` in `packages/core/src/schema/report.ts` is the real runtime schema today.
-- `packages/core/schema/report.schema.json` is now automatically generated from the Zod schema via a script.
-- The schema should get regression tests that assert sample reports match the public JSON schema artifact.
+- `packages/core/schema/report.schema.json` is now automatically generated from the built Zod schema via `z.toJSONSchema()` and formatted by the generation script.
+- The schema should get deeper regression tests that validate sample reports with a real JSON Schema validator, not only the current E2E smoke check for a useful artifact shape.
 
 ### Check package gaps
 
@@ -285,17 +298,18 @@ Missing check packages (Phase H):
 
 ### Test gaps
 
-- E2E full-flow suite exists for `check`, blocking findings, background status/result/pending feedback, and `install-skill`.
-- Remaining E2E gaps: `init`, `install-hooks`, `doctor`, baseline workflows, generated JSON schema artifact, and public docs examples.
+- E2E full-flow suite exists for `doctor`, `check`, blocking findings, background status/result/pending feedback/ack, baseline init suppression, `install-hooks`, non-interactive `init`, `install-skill`, and the generated report schema artifact.
+- Remaining E2E gaps: deeper baseline workflows (`update`, `accept`, `prune`), hook idempotency/error cases, generated public docs examples after T7.2, CI examples, and release packaging.
 
 ## Recommended next steps
 
-1. **Broaden E2E coverage**
-   - Add E2E coverage for `init`, `install-hooks`, `doctor`, baseline workflows, and schema artifact validation.
-
-2. **Dogfooding & Polish**
+1. **T7.2 Documentation**
    - Add public README usage docs.
    - Add `docs/getting-started.md`, `docs/writing-a-check.md`, `docs/baseline-strategy.md`, and `docs/agent-skill.md`.
+
+2. **Remaining T7 polish**
+   - Add deeper E2E coverage for baseline `update`, `accept`, and `prune`.
+   - Add public docs example validation, CI examples, and release packaging checks.
 
 3. **Deferred check packages**
    - Implement dependency-cruiser, osv-scanner, lockfile-lint, deps-diff, jscpd, and semgrep when the core agent loop is covered by E2E.

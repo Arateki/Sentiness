@@ -66,6 +66,9 @@ function wrapWithPositionals(
 export function registerCommands(cli: CAC, deps: CommandDeps): void {
   cli
     .command('init', 'Initialize Sentiness in the current repository')
+    .option('--yes', 'Run non-interactively with default answers')
+    .option('--checks <ids>', 'Comma-separated check ids to enable in non-interactive mode')
+    .option('--no-baseline', 'Skip initial baseline creation')
     .action(wrap(initCommand, deps));
 
   cli

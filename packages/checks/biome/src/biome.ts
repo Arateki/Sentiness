@@ -66,6 +66,10 @@ async function toFinding(
   };
 }
 
+function isSentinessRuntimeFile(file: string): boolean {
+  return file === '.sentiness' || file.startsWith('.sentiness/') || file.startsWith('.sentiness\\');
+}
+
 export const biomeCheck: Check = {
   id: checkId,
   category: 'lint',
@@ -111,7 +115,9 @@ export const biomeCheck: Check = {
     }
     const cache: FileCache = new Map();
     const findings = await Promise.all(
-      normalizeBiomeOutput(parsed).map((diagnostic) => toFinding(ctx, cache, diagnostic)),
+      normalizeBiomeOutput(parsed)
+        .filter((diagnostic) => !isSentinessRuntimeFile(diagnostic.file))
+        .map((diagnostic) => toFinding(ctx, cache, diagnostic)),
     );
     return {
       status: findings.length > 0 ? 'violations' : 'ok',

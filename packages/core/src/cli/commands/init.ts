@@ -36,17 +36,44 @@ function ignoreBlock(entries: readonly string[]): string {
   return `# Sentiness\n${entries.join('\n')}\n`;
 }
 
+function optionalString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+function enabledCheckSet(args: ParsedArgs): ReadonlySet<string> | undefined {
+  const checks = optionalString(args.checks);
+  if (!checks) {
+    return undefined;
+  }
+  return new Set(
+    checks
+      .split(',')
+      .map((check) => check.trim())
+      .filter((check) => check.length > 0),
+  );
+}
+
 export async function initCommand(args: ParsedArgs, deps: CommandDeps): Promise<number> {
-  const prompter = new Prompter(deps.stdout);
+  const isNonInteractive = args.yes === true;
+  const selectedChecks = enabledCheckSet(args);
+  const prompter = isNonInteractive ? undefined : new Prompter(deps.stdout);
+
+  const confirm = async (
+    question: string,
+    defaultValue: boolean,
+    nonInteractiveValue = defaultValue,
+  ): Promise<boolean> =>
+    prompter ? prompter.confirm(question, defaultValue) : nonInteractiveValue;
 
   try {
     deps.logger.info('Welcome to Sentiness Init Wizard!');
 
     const configPath = resolvePath(deps.cwd, 'sentiness.config.json');
     if (await deps.fs.exists(configPath)) {
-      const proceed = await prompter.confirm(
+      const proceed = await confirm(
         'sentiness.config.json already exists. Do you want to overwrite it?',
         false,
+        true,
       );
       if (!proceed) {
         deps.logger.info('Init aborted.');
@@ -73,7 +100,11 @@ export async function initCommand(args: ParsedArgs, deps: CommandDeps): Promise<
     ] as const;
 
     for (const check of knownChecks) {
-      const enabled = await prompter.confirm(`Enable ${check.label}?`, true);
+      const enabled = await confirm(
+        `Enable ${check.label}?`,
+        true,
+        selectedChecks ? selectedChecks.has(check.id) : true,
+      );
       if (enabled) {
         checks[check.id] = { enabled: true, tier: check.tier };
       }
@@ -115,15 +146,14 @@ export async function initCommand(args: ParsedArgs, deps: CommandDeps): Promise<
       deps.logger.info('Created .gitignore with .sentiness/ ignores');
     }
 
-    // Soft dependency message for Phase 6
-    deps.logger.info('\nNote: Agent adapters (Phase 6) are not yet built.');
     deps.logger.info(
-      'Run `sentiness install-skill --agent=<name>` later when available to install AI instructions.',
+      '\nRun `sentiness install-skill --agent=<name>` to install managed AI agent instructions.',
     );
 
-    const runBaseline = await prompter.confirm(
+    const runBaseline = await confirm(
       '\nCreate initial baseline now? (recommended for existing projects)',
       true,
+      args.baseline !== false,
     );
     if (runBaseline) {
       deps.logger.info('Running baseline init...');
@@ -132,7 +162,7 @@ export async function initCommand(args: ParsedArgs, deps: CommandDeps): Promise<
 
     deps.logger.info('\nSentiness initialization complete!');
   } finally {
-    prompter.close();
+    prompter?.close();
   }
 
   return 0;

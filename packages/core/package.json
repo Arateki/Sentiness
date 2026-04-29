@@ -16,7 +16,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --config ../../vitest.config.base.ts src",
     "test:e2e": "vitest run --config ../../vitest.config.base.ts test/e2e",
-    "generate-schema": "tsx scripts/generate-schema.ts"
+    "generate-schema": "pnpm build && node scripts/generate-schema.mjs && pnpm exec biome format --write schema/report.schema.json"
   },
   "dependencies": {
     "@sentiness/adapters": "workspace:*",
@@ -28,7 +28,6 @@
     "@sentiness/_test-utils": "workspace:*",
     "@types/node": "latest",
     "typescript": "latest",
-    "vitest": "latest",
-    "zod-to-json-schema": "latest"
+    "vitest": "latest"
   }
 }

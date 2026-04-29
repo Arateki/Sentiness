@@ -51,4 +51,27 @@ describe('biomeCheck', () => {
     expect(result.status).toBe('violations');
     expect(result.findings[0]?.fingerprint).toMatch(/^[a-f0-9]{64}$/);
   });
+
+  it('ignores Sentiness runtime files', async () => {
+    const process = new FakeProcessRunner();
+    process.enqueue({
+      stdout: JSON.stringify({
+        diagnostics: [
+          {
+            category: 'format',
+            severity: 'error',
+            message: 'Format baseline',
+            location: { path: { file: '.sentiness/baseline.json' } },
+          },
+        ],
+      }),
+      stderr: '',
+      exitCode: 1,
+    });
+
+    const result = await biomeCheck.run(context(process));
+
+    expect(result.status).toBe('ok');
+    expect(result.findings).toEqual([]);
+  });
 });
