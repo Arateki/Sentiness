@@ -1,0 +1,40 @@
+#!/usr/bin/env node
+import process from 'node:process';
+import type { Clock } from '@sentiness/check-sdk';
+import { cac } from 'cac';
+import { createNodeFileSystem } from '../fs/node-fs.js';
+import { createGitProvider } from '../git/git.js';
+import { createLogger } from '../logger/logger.js';
+import { createProcessRunner } from '../process/process-runner.js';
+import { registerCommands } from './commands/registry.js';
+
+const systemClock: Clock = {
+  now: () => Date.now(),
+  isoNow: () => new Date().toISOString(),
+};
+
+export async function main(argv: readonly string[] = process.argv): Promise<void> {
+  const processRunner = createProcessRunner();
+  const deps = {
+    cwd: process.cwd(),
+    fs: createNodeFileSystem(),
+    processRunner,
+    logger: createLogger({ level: 'info', stream: process.stderr, format: 'pretty' }),
+    clock: systemClock,
+    git: createGitProvider(processRunner),
+    stdout: { write: (text: string) => process.stdout.write(text) },
+  };
+  const cli = cac('sentiness');
+  registerCommands(cli, deps);
+  cli.help();
+  cli.version('0.1.0');
+
+  try {
+    cli.parse([...argv]);
+  } catch (error) {
+    deps.logger.error(error instanceof Error ? error.message : 'Unknown CLI error');
+    process.exitCode = 3;
+  }
+}
+
+await main();

@@ -1,0 +1,9 @@
+{
+  "name": "demo-project",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@biomejs/biome": "latest",
+    "@sentiness/check-biome": "workspace:*"
+  }
+}

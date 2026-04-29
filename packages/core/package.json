@@ -1,0 +1,31 @@
+{
+  "name": "@sentiness/core",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "sentiness": "./dist/cli/index.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --config ../../vitest.config.base.ts src",
+    "generate-schema": "tsx scripts/generate-schema.ts"
+  },
+  "dependencies": {
+    "@sentiness/check-sdk": "workspace:*",
+    "cac": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "typescript": "latest",
+    "vitest": "latest",
+    "zod-to-json-schema": "latest"
+  }
+}

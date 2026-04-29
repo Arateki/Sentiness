@@ -1,0 +1,7 @@
+node_modules/
+dist/
+coverage/
+.sentiness/jobs/
+.sentiness/cache/
+.sentiness/pending-feedback.json
+*.log

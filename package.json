@@ -1,0 +1,26 @@
+{
+  "name": "sentiness",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=20.10"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "lint": "biome check .",
+    "typecheck": "pnpm -r typecheck",
+    "sentiness": "node packages/core/dist/cli/index.js"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "latest",
+    "@sentiness/check-biome": "workspace:*",
+    "@types/node": "latest",
+    "@vitest/coverage-v8": "latest",
+    "fast-check": "latest",
+    "typescript": "latest",
+    "vitest": "latest"
+  }
+}
