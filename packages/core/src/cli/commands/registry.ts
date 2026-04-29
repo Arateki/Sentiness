@@ -7,6 +7,8 @@ import {
 } from './baseline.js';
 import { checkCommand } from './check.js';
 import { doctorCommand } from './doctor.js';
+import { pendingCommand } from './pending.js';
+import { statusCommand } from './status.js';
 import type { CommandDeps, ParsedArgs } from './types.js';
 
 type CommandHandler = (args: ParsedArgs, deps: CommandDeps) => Promise<number>;
@@ -30,11 +32,25 @@ export function registerCommands(cli: CAC, deps: CommandDeps): void {
     .option('--trigger <trigger>', 'Resolve tier from trigger')
     .option('--diff', 'Only keep findings introduced in changed files')
     .option('--base <ref>', 'Base ref for diff mode')
+    .option('--background', 'Run check in a background job')
+    .option('--job-id <id>', 'Internal: set job id for the run')
     .option('--compact', 'Omit ok checks from report')
     .option('--output <path>', 'Also write report JSON to a file')
     .action(wrap(checkCommand, deps));
 
   cli.command('doctor', 'Diagnose configured checks').action(wrap(doctorCommand, deps));
+
+  cli
+    .command('status [jobId]', 'Check status of a background job')
+    .action(wrap(statusCommand, deps));
+
+  cli
+    .command(
+      'pending [...args]',
+      'List or acknowledge pending feedback (usage: sentiness pending [ack <id>])',
+    )
+    .option('--all', 'Show all pending items including acknowledged ones')
+    .action(wrap(pendingCommand, deps));
 
   const baselineCmd = cli.command(
     'baseline <action>',

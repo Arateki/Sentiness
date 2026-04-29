@@ -15,5 +15,6 @@ export type CommandDeps = {
 };
 
 export type ParsedArgs = {
+  readonly _?: readonly string[];
   readonly [key: string]: unknown;
 };

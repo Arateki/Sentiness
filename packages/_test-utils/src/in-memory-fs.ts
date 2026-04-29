@@ -66,15 +66,22 @@ export class InMemoryFileSystem implements FileSystem {
   }
 
   async mkdir(path: string, options?: { readonly recursive?: boolean }): Promise<void> {
+    const normalized = normalizePath(path);
+
     if (options?.recursive) {
       this.ensureDir(path);
       return;
     }
-    const parent = dirname(normalizePath(path));
+    const parent = dirname(normalized);
     if (!this.directories.has(parent)) {
       throw new Error(`Parent directory does not exist: ${parent}`);
     }
-    this.directories.add(normalizePath(path));
+    if (this.directories.has(normalized) || this.files.has(normalized)) {
+      const err = new Error(`EEXIST: file or directory already exists, mkdir '${path}'`);
+      Object.assign(err, { code: 'EEXIST' });
+      throw err;
+    }
+    this.directories.add(normalized);
   }
 
   async rm(path: string): Promise<void> {

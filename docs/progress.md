@@ -21,7 +21,7 @@ The implementation should progress in usable slices, not by completing the whole
 3. **Phase C - Agent feedback loop**
    - Goal: support long checks and pending feedback so AI agents can continue working without losing actionable results.
    - Scope: background job spawner, job status reader, pending feedback queue, lock handling, `sentiness status`, `sentiness pending`, and `sentiness check --background`.
-   - Status: **partial**; `JobSpawner` and `JobReader` are implemented.
+   - Status: **done**; Background job execution, status reporting, and pending feedback queues are fully operational via the CLI.
 
 4. **Phase D - CLI onboarding and local automation**
    - Goal: make Sentiness easy to add to a target repo.
