@@ -323,7 +323,8 @@ export type Category =
   | 'coverage'
   | 'security'
   | 'duplication'
-  | 'complexity';
+  | 'complexity'
+  | 'platform';   // reserved for runner-generated synthetic results (e.g. check-load failures)
 export type Severity = 'error' | 'warning' | 'info';
 
 export interface Location {
@@ -1777,7 +1778,7 @@ The full Zod-derived shape lives in `packages/core/src/schema/report.ts`. The hi
 
   checks: readonly {
     id: CheckId,
-    category: Category,
+    category: Category,   // 'platform' when the runner itself generated the result (load failure)
     status: CheckStatus,
     durationMs: number,
     metrics?: CheckMetrics,

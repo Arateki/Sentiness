@@ -112,6 +112,45 @@ describe('diff-filter', () => {
     ]);
   });
 
+  it('clears all findings in trend mode and still computes metric regressions', () => {
+    const finding = makeFinding('b'.repeat(64), 'src/new.ts');
+    const result: CheckResult = {
+      status: 'violations',
+      findings: [finding],
+      durationMs: 1,
+      metrics: { score: 70 },
+    };
+    const trendOutcome: RunOutcome = {
+      ...makeOutcome(result),
+      context: {
+        cwd: '/project',
+        tier: 'standard',
+        trigger: null,
+        mode: 'trend',
+        baseRef: null,
+        headRef: 'HEAD',
+        changedFiles: [],
+      },
+    };
+    const baseline = {
+      ...makeBaseline('a'.repeat(64)),
+      suppressed: [],
+      metrics: { 'fake.score': { value: 90, direction: 'higher-is-better' as const } },
+    };
+
+    const application = applyBaselineToOutcome(trendOutcome, baseline, {
+      baselinePath: '/project/.sentiness/baseline.json',
+      diffOnly: false,
+    });
+
+    expect(application.outcome.results.get(checkId)?.findings).toEqual([]);
+    expect(application.suppressedCount).toBe(0);
+    expect(application.baselineApplied).toBe(false);
+    expect(application.metricRegressions).toEqual([
+      { metric: 'fake.score', baselineValue: 90, currentValue: 70, direction: 'higher-is-better' },
+    ]);
+  });
+
   it('adds metric regressions when applying a baseline to an outcome', () => {
     const result: CheckResult = {
       status: 'ok',

@@ -1,6 +1,6 @@
 # Sentiness implementation handoff
 
-Last updated: 2026-04-28
+Last updated: 2026-04-29
 
 This document is a working handoff for continuing the implementation. The canonical product specification is still `CLAUDE.md`; this file records the practical phase approach, what has already landed, what is partial, and what should happen next.
 
@@ -47,6 +47,39 @@ The implementation should progress in usable slices, not by completing the whole
    - Goal: add the remaining heavier check packages.
    - Scope: dependency-cruiser, osv-scanner, lockfile-lint, deps-diff, jscpd, semgrep.
    - Status: **not started**.
+
+## Sprint corretivo (2026-04-28 / 2026-04-29)
+
+A post-implementation audit identified a set of bugs and spec gaps that were addressed in a dedicated correction sprint. Two analysis documents were produced and committed:
+
+- `docs/post-phase5-codex-review.md` — Codex's review and corrections (COD-1.1 through COD-1.6).
+- `docs/post-phase5-claude-followup.md` — follow-up analysis by Claude verifying all 30 audit points, confirming 7 Codex-caught bugs missed in the original audit, and proposing 8 follow-up items (§4.1–§4.8).
+
+### Corrections applied during the sprint (COD series)
+
+| ID | What | Status |
+|----|------|--------|
+| COD-1.1 | Zod validation at all I/O boundaries (`JobMeta`, `BaselineSnapshot`, `PendingItem`, Istanbul report) | Done |
+| COD-1.2 | `wrapWithPositionals()` added to registry to handle `cac` positional args | Done |
+| COD-1.3 | `exitCodeFor()` returns 3 when `summary.status === 'error'` | Done |
+| COD-1.4 | `compareMetrics` wired into `applyBaselineToOutcome`; metric regressions now surfaced in every run | Done |
+| COD-1.5 | `metricSpecs` optional field added to `Check` interface and `RunOutcome.checkMetadata` | Done |
+| COD-1.6 | `effectiveTier()` centralizes tier-from-trigger resolution in `check.ts` | Done |
+
+### Follow-up fixes applied (§4 series)
+
+| ID | What | Status |
+|----|------|--------|
+| §4.1 | `--trend` now has real semantics: `applyBaselineToOutcome` suppresses all findings when `mode === 'trend'`, leaving only metric regressions visible. `baselineApplied` is `false` in this mode. New test in `diff-filter.test.ts`. | **Done** |
+| §4.5 | `'platform'` category is now documented in `CLAUDE.md` §T0.2 `Category` type and in Appendix A `checks[]` field. | **Done** |
+| §4.2 | `SENTINESS_VERSION` is still hardcoded `'0.1.0'` in `packages/core/src/version.ts` | Open |
+| §4.3 | No property-based tests for `applyBaseline` / `applyBaselineToOutcome` idempotency | Open |
+| §4.4 | `install-hooks` command exists but is marked as a known gap above | Open |
+| §4.6 | `doctor` does not yet call each check's `detect()` | Open |
+| §4.7 | No E2E tests yet | Open |
+| §4.8 | No adapter packages yet | Open |
+
+---
 
 ## What is already implemented
 
@@ -96,23 +129,31 @@ The implementation should progress in usable slices, not by completing the whole
 - Reporter that emits the normalized JSON report and agent instructions.
 - Exit-code mapping for blocking reports.
 - Baseline manager primitives: load, save, create from outcome, accept, and prune.
-- Baseline application to suppress known fingerprints and optionally keep only changed-file findings.
+- Baseline application: suppresses known fingerprints; in `diffOnly` mode drops out-of-diff findings; in `trend` mode suppresses all findings and surfaces only metric regressions.
+- Metric regression detection wired into every run via `compareMetrics` inside `applyBaselineToOutcome`.
 - Logger abstraction and stream logger.
 - Node filesystem implementation.
 - Node process runner implementation.
 - Git provider implementation.
 - Package metadata detector.
+- Background job spawner, job status reader, and pending feedback queue.
 - CLI commands:
-  - `sentiness check`
+  - `sentiness check` (including `--background`, `--diff`, `--trend`, `--base`)
+  - `sentiness status`
+  - `sentiness baseline init / update / accept / prune`
+  - `sentiness pending` / `sentiness pending ack`
+  - `sentiness install-hooks`
+  - `sentiness init` (wizard)
   - `sentiness doctor`
 
-### `@sentiness/check-biome`
+### Check packages
 
-- Biome check package.
-- Tool availability detection through the injected process runner.
-- Biome JSON normalization.
-- Finding generation with SDK fingerprints.
-- Tests for detection, run behavior, tool errors, normalization, and fingerprint shape.
+All implemented check packages follow the same structure: `detect`, `run`, `normalize`, fingerprint computation, and `FakeProcessRunner`-based tests.
+
+- **`@sentiness/check-biome`** — Biome lint check; JSON normalization; severity and location mapping.
+- **`@sentiness/check-knip`** — Unused exports and dead-dependency detection; JSON normalization.
+- **`@sentiness/check-coverage`** — Istanbul `coverage-final.json` reader; per-file and diff coverage thresholds; skips gracefully when report is absent.
+- **`@sentiness/check-stryker`** — StrykerJS mutation score; surviving-mutant findings; reads Stryker's JSON report.
 
 ### Example project
 

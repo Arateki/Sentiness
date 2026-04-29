@@ -112,22 +112,30 @@ export function applyBaselineToOutcome(
   baseline: BaselineSnapshot | undefined,
   options: { readonly baselinePath: string | null; readonly diffOnly: boolean },
 ): BaselineApplication {
+  const isTrend = outcome.context.mode === 'trend';
   const results = new Map(outcome.results);
   let suppressedCount = 0;
+
   for (const [checkId, result] of outcome.results) {
-    const filtered = applyBaseline(
-      result.findings,
-      baseline,
-      outcome.context.changedFiles,
-      options.diffOnly,
-    );
-    suppressedCount += filtered.suppressedCount;
-    results.set(checkId, resultWithFindings(result, filtered.findings));
+    if (isTrend) {
+      // In trend mode, suppress all findings — only metric regressions are surfaced.
+      // Metrics are preserved on the original result for compareMetrics below.
+      results.set(checkId, resultWithFindings(result, []));
+    } else {
+      const filtered = applyBaseline(
+        result.findings,
+        baseline,
+        outcome.context.changedFiles,
+        options.diffOnly,
+      );
+      suppressedCount += filtered.suppressedCount;
+      results.set(checkId, resultWithFindings(result, filtered.findings));
+    }
   }
 
   return {
     outcome: { ...outcome, results, checkMetadata: outcome.checkMetadata },
-    baselineApplied: baseline !== undefined,
+    baselineApplied: !isTrend && baseline !== undefined,
     baselinePath: options.baselinePath,
     suppressedCount,
     metricRegressions: baseline
