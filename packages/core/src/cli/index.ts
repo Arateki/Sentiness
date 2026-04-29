@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { writeSync } from 'node:fs';
 import process from 'node:process';
 import type { Clock } from '@sentiness/check-sdk';
 import { cac } from 'cac';
@@ -24,7 +25,7 @@ export async function main(argv: readonly string[] = process.argv): Promise<void
     logger: createLogger({ level: 'info', stream: process.stderr, format: 'pretty', clock }),
     clock,
     git: createGitProvider(processRunner),
-    stdout: { write: (text: string) => process.stdout.write(text) },
+    stdout: { write: (text: string) => writeSync(process.stdout.fd, text) },
     ...(argv[1] ? { cliPath: argv[1] } : {}),
   };
   const cli = cac('sentiness');

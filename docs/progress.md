@@ -41,7 +41,7 @@ The implementation should progress in usable slices, not by completing the whole
 7. **Phase G - Integration, docs, and polish**
    - Goal: harden behavior across realistic projects and document public usage.
    - Scope: E2E tests against `examples/demo-project`, public README/docs, complete JSON schema artifact, CI examples, and release packaging.
-   - Status: **not started**, except for the demo project scaffold.
+   - Status: **partial**; T7.1 E2E full-flow tests now cover the built CLI against `examples/demo-project`, real Biome findings, background job status/result/pending feedback, and `install-skill --agent=all`.
 
 8. **Phase H - Additional check packages (Deferred)**
    - Goal: add the remaining heavier check packages.
@@ -108,6 +108,27 @@ git check-ignore -v packages/adapters/coverage/coverage-final.json
 ```
 
 Adapter package coverage after the audit: 97.72% lines and 84% branches. The built `install-skill --agent=all` smoke test created `CLAUDE.md`, `AGENTS.md`, and `GEMINI.md` in a temporary project on the first run and returned `changed: false` for all three on the second run.
+
+---
+
+## Phase G progress (2026-04-29)
+
+### T7.1 E2E suite
+
+Implemented `packages/core/test/e2e/full-flow.test.ts` and wired:
+
+```sh
+pnpm test:e2e
+```
+
+Coverage:
+
+- Built CLI runs `check --tier=fast --compact` against `examples/demo-project`.
+- A temporary copy of the demo project with a real Biome issue returns blocking findings and exit code `1`.
+- Background flow completes end to end: `check --background` returns `jobId`, `status <jobId>` reaches `completed`, `result.json` validates against `ReportSchema`, and `pending --all` contains the unacked feedback item.
+- `install-skill --agent=all` creates Claude Code, Codex, and Gemini instruction files and is idempotent on re-run.
+
+The E2E suite found and fixed a real CLI process bug: JSON output could be lost when stdout was captured by another process. The CLI entrypoint now writes command stdout through `writeSync(process.stdout.fd, text)`, keeping command handlers unchanged while making subprocess capture deterministic.
 
 ---
 
@@ -207,6 +228,7 @@ The following commands passed after Phase F adapters were added:
 pnpm typecheck
 pnpm build
 pnpm test
+pnpm test:e2e
 pnpm lint
 pnpm sentiness check --tier=fast --compact
 ```
@@ -259,22 +281,21 @@ Missing check packages (Phase H):
 ### Adapter gaps
 
 - Adapter package, template, and three managed-section writers are implemented.
-- E2E coverage for adapter installation is still missing and should land with Phase G.
+- E2E coverage for adapter installation exists through `install-skill --agent=all`.
 
 ### Test gaps
 
-- No CLI integration tests yet (except for `init` and `spawner`).
-- No E2E test suite yet.
-- No tests for generated agent instruction files.
+- E2E full-flow suite exists for `check`, blocking findings, background status/result/pending feedback, and `install-skill`.
+- Remaining E2E gaps: `init`, `install-hooks`, `doctor`, baseline workflows, generated JSON schema artifact, and public docs examples.
 
 ## Recommended next steps
 
-1. **Finish CLI onboarding**
-   - Add E2E coverage for `init`, `install-hooks`, `install-skill`, `doctor`, background jobs, and pending feedback.
+1. **Broaden E2E coverage**
+   - Add E2E coverage for `init`, `install-hooks`, `doctor`, baseline workflows, and schema artifact validation.
 
 2. **Dogfooding & Polish**
-   - Add E2E tests using `examples/demo-project`.
    - Add public README usage docs.
+   - Add `docs/getting-started.md`, `docs/writing-a-check.md`, `docs/baseline-strategy.md`, and `docs/agent-skill.md`.
 
 3. **Deferred check packages**
    - Implement dependency-cruiser, osv-scanner, lockfile-lint, deps-diff, jscpd, and semgrep when the core agent loop is covered by E2E.
@@ -286,9 +307,10 @@ Before starting any next task:
 ```sh
 pnpm install
 pnpm typecheck
-pnpm test
-pnpm lint
 pnpm build
+pnpm test
+pnpm test:e2e
+pnpm lint
 pnpm sentiness doctor
 pnpm sentiness check --tier=fast --compact
 ```
