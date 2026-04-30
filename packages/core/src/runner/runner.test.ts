@@ -1,6 +1,6 @@
 import { FixedClock, InMemoryFileSystem, InMemoryGitProvider } from '@sentiness/_test-utils';
 import { asCheckId, type Check } from '@sentiness/check-sdk';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_CONFIG } from '../config/config.js';
 import { CheckRegistry } from '../registry/registry.js';
 import { runChecks } from './runner.js';
@@ -142,5 +142,47 @@ describe('runner', () => {
     const failRes = outcome.results.get(asCheckId('fail'));
     expect(failRes?.status).toBe('error');
     expect(failRes?.errorMessage).toBe('run error');
+  });
+
+  it('returns a check error when configSchema rejects checkConfig', async () => {
+    const run = vi.fn();
+    const configCheck: Check = {
+      id: asCheckId('config-check'),
+      category: 'lint',
+      defaultTier: 'fast',
+      configSchema: {
+        parse: () => {
+          throw new Error('threshold must be a number');
+        },
+      },
+      detect: async () => ({ available: true }),
+      run,
+    };
+    const registry = await CheckRegistry.fromConfig(DEFAULT_CONFIG, process.cwd());
+    Object.defineProperty(registry, 'checks', {
+      value: [configCheck],
+    });
+    const fs = new InMemoryFileSystem();
+    const git = new InMemoryGitProvider();
+
+    const outcome = await runChecks(
+      {
+        registry,
+        config: DEFAULT_CONFIG,
+        cwd: '/project',
+        fs,
+        git,
+        process: {} as unknown as import('@sentiness/check-sdk').ProcessRunner,
+        logger: {} as unknown as import('@sentiness/check-sdk').Logger,
+        clock: new FixedClock(0),
+      },
+      { tier: 'fast', diffOnly: false },
+    );
+
+    const result = outcome.results.get(asCheckId('config-check'));
+    expect(result?.status).toBe('error');
+    expect(result?.errorMessage).toContain('Invalid config for check "config-check"');
+    expect(result?.errorMessage).toContain('threshold must be a number');
+    expect(run).not.toHaveBeenCalled();
   });
 });

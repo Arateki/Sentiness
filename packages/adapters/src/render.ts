@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { RenderOptions } from './types.js';
 
-export const TEMPLATE_VERSION = '1.0' as const;
+export const TEMPLATE_VERSION = '1.1' as const;
 
 const TEMPLATE_PATH = join(dirname(fileURLToPath(import.meta.url)), 'skill-template.md');
 const PLACEHOLDER_PATTERN = /\{\{([a-zA-Z0-9]+)\}\}/g;

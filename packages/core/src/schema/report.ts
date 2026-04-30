@@ -103,6 +103,7 @@ export const ReportSchema = z.object({
   }),
   baseline: z.object({
     applied: z.boolean(),
+    mode: z.enum(['suppress', 'metrics-only', 'none']),
     path: z.string(),
     suppressedFindings: z.number(),
   }),

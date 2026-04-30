@@ -50,7 +50,7 @@ describe('JobReader', () => {
       },
       checks: [],
       trend: { available: false, reason: 'no metric baseline regressions' },
-      baseline: { applied: false, path: '', suppressedFindings: 0 },
+      baseline: { applied: false, mode: 'none', path: '', suppressedFindings: 0 },
       agentInstructions: { blocking: false, mustFix: [], shouldFix: [], informational: [] },
     });
   }
@@ -67,7 +67,7 @@ describe('JobReader', () => {
     expect(result).toEqual(jobMeta);
   });
 
-  it('detects orphaned jobs by checking PID liveness', async () => {
+  it('read is pure and does not mutate meta.json for orphaned jobs', async () => {
     const fs = new InMemoryFileSystem();
     const reader = new JobReader('/jobs', fs);
     const jobMeta = meta({ pid: 99999999, status: 'running' });
@@ -76,6 +76,20 @@ describe('JobReader', () => {
     await fs.writeFile('/jobs/123/meta.json', JSON.stringify(jobMeta));
 
     const result = await reader.read('123');
+    expect(result?.status).toBe('running');
+    const stored = await fs.readFile('/jobs/123/meta.json');
+    expect(stored).not.toContain('"status": "failed"');
+  });
+
+  it('reconcile detects orphaned jobs and updates meta.json', async () => {
+    const fs = new InMemoryFileSystem();
+    const reader = new JobReader('/jobs', fs);
+    const jobMeta = meta({ pid: 99999999, status: 'running' });
+
+    await fs.mkdir('/jobs/123', { recursive: true });
+    await fs.writeFile('/jobs/123/meta.json', JSON.stringify(jobMeta));
+
+    const result = await reader.reconcile('123');
     expect(result?.status).toBe('failed');
     expect(result?.exitCode).toBe(-1);
     await expect(fs.readFile('/jobs/123/meta.json')).resolves.toContain('"status": "failed"');
@@ -187,8 +201,7 @@ describe('JobReader', () => {
     expect(await reader.read('123')).toBeUndefined();
   });
 
-  it('handles EPERM correctly as alive', async () => {
-    // We mock process.kill to throw EPERM
+  it('reconcile treats EPERM as alive (process exists but no permission to signal)', async () => {
     const originalKill = process.kill;
     process.kill = vi.fn().mockImplementation(() => {
       const err = new Error('EPERM');
@@ -204,7 +217,7 @@ describe('JobReader', () => {
       await fs.mkdir('/jobs/123', { recursive: true });
       await fs.writeFile('/jobs/123/meta.json', JSON.stringify(jobMeta));
 
-      const result = await reader.read('123');
+      const result = await reader.reconcile('123');
       expect(result?.status).toBe('running');
     } finally {
       process.kill = originalKill;

@@ -1,3 +1,7 @@
+// When bumping schemaVersion to '1.1' or higher: add a pre-parse step in baseline.ts that reads
+// the raw `schemaVersion` field and throws a clear error like "Baseline uses schema 1.1; upgrade
+// Sentiness to read it" rather than a generic ZodError. This avoids silent data loss for users
+// who downgrade Sentiness after already writing a newer baseline.
 import { z } from 'zod';
 
 const BaselineEntrySchema = z.object({

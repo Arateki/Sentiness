@@ -86,6 +86,22 @@ describe('installSkillCommand', () => {
     expect(await fs.exists('/project/GEMINI.md')).toBe(true);
   });
 
+  it('filters --agent=all through config.agents when configured', async () => {
+    const fs = new InMemoryFileSystem({
+      '/project/sentiness.config.json': JSON.stringify({
+        ...DEFAULT_CONFIG,
+        agents: ['codex'],
+      }),
+    });
+
+    const exitCode = await installSkillCommand({ agent: 'all' }, depsFor(fs));
+
+    expect(exitCode).toBe(0);
+    expect(await fs.exists('/project/CLAUDE.md')).toBe(false);
+    expect(await fs.exists('/project/AGENTS.md')).toBe(true);
+    expect(await fs.exists('/project/GEMINI.md')).toBe(false);
+  });
+
   it('rejects missing or invalid agents', async () => {
     const fs = new InMemoryFileSystem({
       '/project/sentiness.config.json': JSON.stringify(DEFAULT_CONFIG),

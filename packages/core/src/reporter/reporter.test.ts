@@ -53,6 +53,7 @@ describe('reporter', () => {
       {
         outcome,
         baselineApplied: false,
+        baselineMode: 'none' as const,
         baselinePath: null,
         suppressedCount: 0,
         metricRegressions: [],
@@ -97,6 +98,7 @@ describe('reporter', () => {
       {
         outcome,
         baselineApplied: true,
+        baselineMode: 'suppress' as const,
         baselinePath: 'path',
         suppressedCount: 1,
         metricRegressions: [
@@ -136,6 +138,7 @@ describe('reporter', () => {
       {
         outcome,
         baselineApplied: false,
+        baselineMode: 'none' as const,
         baselinePath: null,
         suppressedCount: 0,
         metricRegressions: [],
@@ -166,6 +169,7 @@ describe('reporter', () => {
       {
         outcome,
         baselineApplied: false,
+        baselineMode: 'none' as const,
         baselinePath: null,
         suppressedCount: 0,
         metricRegressions: [],
@@ -209,6 +213,7 @@ describe('reporter', () => {
       {
         outcome,
         baselineApplied: false,
+        baselineMode: 'none' as const,
         baselinePath: null,
         suppressedCount: 0,
         metricRegressions: [],
@@ -230,6 +235,7 @@ describe('reporter', () => {
       {
         outcome,
         baselineApplied: false,
+        baselineMode: 'none' as const,
         baselinePath: null,
         suppressedCount: 0,
         metricRegressions: [],
@@ -256,6 +262,7 @@ describe('reporter', () => {
       {
         outcome,
         baselineApplied: false,
+        baselineMode: 'none' as const,
         baselinePath: null,
         suppressedCount: 0,
         metricRegressions: [],
@@ -289,6 +296,7 @@ describe('reporter', () => {
         {
           outcome,
           baselineApplied: false,
+          baselineMode: 'none' as const,
           baselinePath: null,
           suppressedCount: 0,
           metricRegressions: [],
@@ -297,5 +305,120 @@ describe('reporter', () => {
         { compact: false, omitOk: false },
       ),
     ).toThrow(/Missing result for/);
+  });
+
+  it('sets blocking=true and adds mustFix entry when a check has status error (C-2)', () => {
+    const errorCheckId = asCheckId('broken-tool');
+    const outcome = {
+      ...baseOutcome,
+      results: new Map([
+        [
+          errorCheckId,
+          {
+            status: 'error' as const,
+            durationMs: 2,
+            findings: [],
+            errorMessage: 'broken-tool not found in PATH',
+          },
+        ],
+      ]),
+      checkMetadata: new Map([[errorCheckId, { category: 'lint' as const }]]),
+    };
+
+    const report = buildReport(
+      {
+        outcome,
+        baselineApplied: false,
+        baselineMode: 'none' as const,
+        baselinePath: null,
+        suppressedCount: 0,
+        metricRegressions: [],
+      },
+      DEFAULT_CONFIG,
+      { compact: false, omitOk: false },
+    );
+
+    expect(report.summary.status).toBe('error');
+    expect(report.summary.blocking).toBe(true);
+    expect(report.agentInstructions.blocking).toBe(true);
+    expect(report.agentInstructions.mustFix).toHaveLength(1);
+    expect(report.agentInstructions.mustFix[0]).toContain("check 'broken-tool' failed");
+    expect(report.agentInstructions.mustFix[0]).toContain('broken-tool not found in PATH');
+    expect(exitCodeFor(report)).toBe(3);
+  });
+
+  it('does not set blocking for errored checks when 0 findings and 0 errored checks (regression guard)', () => {
+    const outcome = {
+      ...baseOutcome,
+      results: new Map([[checkId, { status: 'ok' as const, durationMs: 2, findings: [] }]]),
+    };
+
+    const report = buildReport(
+      {
+        outcome,
+        baselineApplied: false,
+        baselineMode: 'none' as const,
+        baselinePath: null,
+        suppressedCount: 0,
+        metricRegressions: [],
+      },
+      DEFAULT_CONFIG,
+      { compact: false, omitOk: false },
+    );
+
+    expect(report.summary.blocking).toBe(false);
+    expect(exitCodeFor(report)).toBe(0);
+  });
+
+  it('baseline.mode reflects how baseline was applied (A-1)', () => {
+    const outcome = {
+      ...baseOutcome,
+      results: new Map([[checkId, { status: 'ok' as const, durationMs: 2, findings: [] }]]),
+    };
+
+    const suppressReport = buildReport(
+      {
+        outcome,
+        baselineApplied: true,
+        baselineMode: 'suppress',
+        baselinePath: 'b.json',
+        suppressedCount: 3,
+        metricRegressions: [],
+      },
+      DEFAULT_CONFIG,
+      { compact: false, omitOk: false },
+    );
+    expect(suppressReport.baseline.applied).toBe(true);
+    expect(suppressReport.baseline.mode).toBe('suppress');
+
+    const trendReport = buildReport(
+      {
+        outcome,
+        baselineApplied: true,
+        baselineMode: 'metrics-only',
+        baselinePath: 'b.json',
+        suppressedCount: 0,
+        metricRegressions: [],
+      },
+      DEFAULT_CONFIG,
+      { compact: false, omitOk: false },
+    );
+    expect(trendReport.baseline.applied).toBe(true);
+    expect(trendReport.baseline.mode).toBe('metrics-only');
+
+    const noneReport = buildReport(
+      {
+        outcome,
+        baselineApplied: false,
+        baselineMode: 'none',
+        baselinePath: null,
+        suppressedCount: 0,
+        metricRegressions: [],
+      },
+      DEFAULT_CONFIG,
+      { compact: false, omitOk: false },
+    );
+    expect(noneReport.baseline.applied).toBe(false);
+    expect(noneReport.baseline.mode).toBe('none');
   });
 });

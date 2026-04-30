@@ -385,6 +385,10 @@
         "applied": {
           "type": "boolean"
         },
+        "mode": {
+          "type": "string",
+          "enum": ["suppress", "metrics-only", "none"]
+        },
         "path": {
           "type": "string"
         },
@@ -392,7 +396,7 @@
           "type": "number"
         }
       },
-      "required": ["applied", "path", "suppressedFindings"],
+      "required": ["applied", "mode", "path", "suppressedFindings"],
       "additionalProperties": false
     },
     "agentInstructions": {

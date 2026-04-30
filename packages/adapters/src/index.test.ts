@@ -3,7 +3,7 @@ import { getAdapter, listAdapters, TEMPLATE_VERSION } from './index.js';
 
 describe('adapter registry', () => {
   it('lists all supported agent adapters', () => {
-    expect(TEMPLATE_VERSION).toBe('1.0');
+    expect(TEMPLATE_VERSION).toBe('1.1');
     expect(
       listAdapters().map((adapter) => ({
         agent: adapter.agent,

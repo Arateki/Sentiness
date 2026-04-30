@@ -189,6 +189,7 @@ function representativeReport(): Report {
     },
     baseline: {
       applied: true,
+      mode: 'suppress',
       path: '.sentiness/baseline.json',
       suppressedFindings: 2,
     },

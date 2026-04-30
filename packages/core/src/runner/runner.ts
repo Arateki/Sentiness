@@ -133,21 +133,33 @@ async function runOneCheck(
   const started = input.clock.now();
   const signal = timeoutSignal(options.signal, input.config.tiers[context.tier].timeoutMs);
   const checkConfig = input.config.checks[check.id] ?? { enabled: true };
-  const checkContext = {
-    cwd: input.cwd,
-    tier: context.tier,
-    trigger: context.trigger,
-    baseRef: context.baseRef,
-    changedFiles: context.changedFiles,
-    diffOnly: options.diffOnly,
-    signal,
-    logger: input.logger,
-    fs: input.fs,
-    process: input.process,
-    checkConfig,
-  };
 
   try {
+    const parsedCheckConfig = check.configSchema
+      ? (() => {
+          try {
+            return check.configSchema.parse(checkConfig);
+          } catch (configError) {
+            throw new Error(
+              `Invalid config for check "${check.id}": ${configError instanceof Error ? configError.message : String(configError)}`,
+            );
+          }
+        })()
+      : checkConfig;
+    const checkContext = {
+      cwd: input.cwd,
+      tier: context.tier,
+      trigger: context.trigger,
+      baseRef: context.baseRef,
+      changedFiles: context.changedFiles,
+      diffOnly: options.diffOnly,
+      signal,
+      logger: input.logger,
+      fs: input.fs,
+      process: input.process,
+      checkConfig: parsedCheckConfig,
+    };
+
     const detect = await check.detect(checkContext);
     if (!detect.available) {
       return skippedResult(detect.reason ?? 'check unavailable', input.clock.now() - started);
@@ -155,6 +167,12 @@ async function runOneCheck(
     const result = await check.run(checkContext);
     return { ...result, durationMs: input.clock.now() - started };
   } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message.startsWith(`Invalid config for check "${check.id}"`)
+    ) {
+      return errorResult(error.message, input.clock.now() - started);
+    }
     return errorResult(
       error instanceof Error ? error.message : 'unknown check error',
       input.clock.now() - started,

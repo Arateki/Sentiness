@@ -37,9 +37,14 @@ async function configPathFor(deps: CommandDeps): Promise<string> {
 function adaptersFor(
   agent: AgentName | 'all',
   adapterModule: AdapterModule,
+  configAgents?: readonly string[],
 ): readonly AgentAdapter[] {
   if (agent === 'all') {
-    return adapterModule.listAdapters();
+    const all = adapterModule.listAdapters();
+    if (configAgents && configAgents.length > 0) {
+      return all.filter((adapter) => configAgents.includes(adapter.agent));
+    }
+    return all;
   }
 
   const adapter = adapterModule.getAdapter(agent);
@@ -55,7 +60,7 @@ export async function installSkillCommand(args: ParsedArgs, deps: CommandDeps): 
 
   const config = await loadConfig(deps.cwd, deps.fs);
   const adapterModule = await loadAdapterModule(deps);
-  const adapters = adaptersFor(requestedAgent, adapterModule);
+  const adapters = adaptersFor(requestedAgent, adapterModule, config.agents);
   if (adapters.length === 0) {
     deps.logger.error(`No adapter available for agent "${requestedAgent}"`);
     return 1;

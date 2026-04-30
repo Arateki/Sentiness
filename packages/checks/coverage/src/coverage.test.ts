@@ -41,14 +41,24 @@ const mockReport = {
 };
 
 describe('coverage', () => {
-  it('detects unconditionally', async () => {
+  it('detects as unavailable when coverage report is missing (M-3)', async () => {
     const fs = new InMemoryFileSystem();
+    const ctx = makeContext(fs);
+    const detect = await coverageCheck.detect(ctx);
+    expect(detect.available).toBe(false);
+    expect(detect.reason).toContain('no Istanbul coverage report');
+  });
+
+  it('detects as available when coverage report exists (M-3)', async () => {
+    const fs = new InMemoryFileSystem({
+      '/project/coverage/coverage-final.json': JSON.stringify(mockReport),
+    });
     const ctx = makeContext(fs);
     const detect = await coverageCheck.detect(ctx);
     expect(detect.available).toBe(true);
   });
 
-  it('skips if coverage file is missing', async () => {
+  it('skips if coverage file is missing (via run, not detect)', async () => {
     const fs = new InMemoryFileSystem();
     const ctx = makeContext(fs);
     const result = await coverageCheck.run(ctx);

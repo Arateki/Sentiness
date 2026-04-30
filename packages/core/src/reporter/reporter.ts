@@ -1,10 +1,10 @@
 import { type CheckId, compareSeverity, type Finding, type Severity } from '@sentiness/check-sdk';
-import type { MetricRegression } from '../baseline/diff-filter.js';
+import type { BaselineMode, MetricRegression } from '../baseline/diff-filter.js';
 import type { ResolvedConfig } from '../config/config.js';
 import type { RunOutcome } from '../runner/runner.js';
 import { type Report, ReportSchema } from '../schema/report.js';
 import { SENTINESS_VERSION } from '../version.js';
-import { buildAgentInstructions } from './agent-instructions.js';
+import { buildAgentInstructions, type ErroredCheck } from './agent-instructions.js';
 
 export type ReporterOptions = {
   readonly compact: boolean;
@@ -15,6 +15,7 @@ export type ReporterOptions = {
 export type ReportInput = {
   readonly outcome: RunOutcome;
   readonly baselineApplied: boolean;
+  readonly baselineMode: BaselineMode;
   readonly baselinePath: string | null;
   readonly suppressedCount: number;
   readonly metricRegressions: readonly MetricRegression[];
@@ -126,9 +127,19 @@ export function buildReport(
     options.compact || options.omitOk
       ? checks.filter((check) => check.status !== 'ok' || check.findings.length > 0)
       : checks;
-  const instructions = buildAgentInstructions(findings, config.reporting.warningsAreErrors);
   const checksErrored = checks.filter((check) => check.status === 'error').length;
   const status = checksErrored > 0 ? 'error' : findings.length > 0 ? 'violations' : 'ok';
+  const erroredCheckDetails: readonly ErroredCheck[] = checks
+    .filter((check) => check.status === 'error')
+    .map((check) => ({
+      id: check.id,
+      ...(check.errorMessage !== undefined ? { errorMessage: check.errorMessage } : {}),
+    }));
+  const instructions = buildAgentInstructions(
+    findings,
+    config.reporting.warningsAreErrors,
+    erroredCheckDetails,
+  );
 
   return ReportSchema.parse({
     schemaVersion: '1.0',
@@ -165,6 +176,7 @@ export function buildReport(
         : { available: false, reason: 'no metric baseline regressions' },
     baseline: {
       applied: input.baselineApplied,
+      mode: input.baselineMode,
       path: input.baselinePath ?? '',
       suppressedFindings: input.suppressedCount,
     },

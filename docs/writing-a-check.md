@@ -109,6 +109,41 @@ export const exampleCheck: Check = {
 
 Do not read config files directly. Check-specific config is already available as `ctx.checkConfig`.
 
+### Check Config Validation
+
+Checks with any configurable fields should expose `configSchema`. The runner parses the raw
+`checks.<id>` config before `detect()` or `run()` and returns `status: "error"` if validation fails.
+The parsed value is then passed back as `ctx.checkConfig`, so the check can avoid ad hoc `typeof`
+guards in the hot path.
+
+```ts
+import { z } from 'zod';
+
+const ExampleConfigSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    tier: z.enum(['fast', 'standard', 'slow']).optional(),
+    threshold: z.number().min(0).max(100).default(80),
+  })
+  .catchall(z.unknown());
+
+type ExampleConfig = z.infer<typeof ExampleConfigSchema>;
+
+export const exampleCheck: Check<ExampleConfig> = {
+  id: checkId,
+  category: 'coverage',
+  defaultTier: 'standard',
+  configSchema: ExampleConfigSchema,
+  async detect(ctx) {
+    return { available: true };
+  },
+  async run(ctx) {
+    const threshold = ctx.checkConfig.threshold;
+    // ...
+  },
+};
+```
+
 ## Finding Shape
 
 Each finding should include:
@@ -118,11 +153,28 @@ Each finding should include:
 - `ruleId`: the branded rule ID.
 - `severity`: `error`, `warning`, or `info`.
 - `message`: actionable text from the tool or normalized by the check.
-- `location`: at least a relative file path when applicable.
+- `location`: at least a relative file path when applicable. **Include `startLine` whenever the underlying tool provides it** — this is a hard requirement for Phase H checks and future hunk-level diff filtering. File-only locations are acceptable only for package-level findings (e.g. vulnerable dependencies) where no source line exists.
 - `fingerprint`: a stable SHA-256 hash from `computeFingerprint()`.
 
 Optional fields such as `snippet`, `suggestion`, and `references` should be used only when they are
 accurate enough for an agent to act on.
+
+### Location Precision
+
+Use `startLine` (1-indexed) whenever the tool reports a line number. This enables:
+
+1. Accurate diff-mode filtering — future versions of `--diff` will drop findings outside changed line ranges.
+2. Clear agent guidance — agents can jump directly to the exact line.
+
+For repository-level or package-level findings with no file/line (e.g. `osv-scanner` CVEs), set `location.packageName` and `location.packageVersion` and leave `startLine` absent.
+
+```ts
+// Good: tool reports a line
+location: { file: 'src/index.ts', startLine: 42 }
+
+// Acceptable: dependency finding without source line
+location: { file: 'package-lock.json', packageName: 'lodash', packageVersion: '4.17.15' }
+```
 
 ## Metrics
 

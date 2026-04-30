@@ -185,7 +185,8 @@ describe('diff-filter', () => {
 
     expect(application.outcome.results.get(checkId)?.findings).toEqual([]);
     expect(application.suppressedCount).toBe(0);
-    expect(application.baselineApplied).toBe(false);
+    expect(application.baselineApplied).toBe(true);
+    expect(application.baselineMode).toBe('metrics-only');
     expect(application.metricRegressions).toEqual([
       { metric: 'fake.score', baselineValue: 90, currentValue: 70, direction: 'higher-is-better' },
     ]);

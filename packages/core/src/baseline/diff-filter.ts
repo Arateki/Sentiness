@@ -15,9 +15,12 @@ export type FilterResult = {
   readonly newInDiff: readonly Finding[];
 };
 
+export type BaselineMode = 'suppress' | 'metrics-only' | 'none';
+
 export type BaselineApplication = {
   readonly outcome: RunOutcome;
   readonly baselineApplied: boolean;
+  readonly baselineMode: BaselineMode;
   readonly baselinePath: string | null;
   readonly suppressedCount: number;
   readonly metricRegressions: readonly MetricRegression[];
@@ -133,9 +136,13 @@ export function applyBaselineToOutcome(
     }
   }
 
+  const baselineMode: BaselineMode =
+    baseline === undefined ? 'none' : isTrend ? 'metrics-only' : 'suppress';
+
   return {
     outcome: { ...outcome, results, checkMetadata: outcome.checkMetadata },
-    baselineApplied: !isTrend && baseline !== undefined,
+    baselineApplied: baseline !== undefined,
+    baselineMode,
     baselinePath: options.baselinePath,
     suppressedCount,
     metricRegressions: baseline

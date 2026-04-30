@@ -1,5 +1,5 @@
 import { FixedClock, InMemoryFileSystem } from '@sentiness/_test-utils';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { PendingQueue } from './pending.js';
 
 describe('PendingQueue', () => {
@@ -172,5 +172,62 @@ describe('PendingQueue', () => {
     await expect(
       queue.enqueue({ jobId: 'j', tier: 'slow', summary: 's', reportPath: 'p' }),
     ).rejects.toThrow('Failed to acquire lock');
+  });
+
+  it('auto-recovers from stale lock with dead PID (M-1)', async () => {
+    const fs = new InMemoryFileSystem();
+    const clock = new FixedClock(1714348800000);
+    const queue = new PendingQueue('/project/.sentiness/pending-feedback.json', fs, clock);
+
+    const lockPath = '/project/.sentiness/pending-feedback.json.lock';
+    // Create a stale lock dir with a dead PID
+    await fs.mkdir('/project/.sentiness', { recursive: true });
+    await fs.mkdir(lockPath, { recursive: false });
+    await fs.writeFile(
+      `${lockPath}/owner`,
+      JSON.stringify({ pid: 99999999, acquiredAt: new Date(0).toISOString() }),
+    );
+
+    // Enqueue should succeed by auto-clearing the stale lock
+    const item = await queue.enqueue({
+      jobId: 'after-stale-lock',
+      tier: 'slow',
+      summary: 'recovered',
+      reportPath: 'p',
+    });
+    expect(item.jobId).toBe('after-stale-lock');
+    const loaded = await queue.load();
+    expect(loaded).toHaveLength(1);
+  });
+
+  it('does not clear a lock when process.kill reports EPERM', async () => {
+    const originalKill = process.kill;
+    process.kill = vi.fn().mockImplementation(() => {
+      const err = new Error('EPERM');
+      Object.assign(err, { code: 'EPERM' });
+      throw err;
+    });
+
+    try {
+      const fs = new InMemoryFileSystem();
+      const clock = new FixedClock(1714348800000);
+      const queue = new PendingQueue('/project/.sentiness/pending-feedback.json', fs, clock);
+      Object.defineProperty(queue, 'sleep', { value: async () => {} });
+
+      const lockPath = '/project/.sentiness/pending-feedback.json.lock';
+      await fs.mkdir('/project/.sentiness', { recursive: true });
+      await fs.mkdir(lockPath, { recursive: false });
+      await fs.writeFile(
+        `${lockPath}/owner`,
+        JSON.stringify({ pid: 99999999, acquiredAt: clock.isoNow() }),
+      );
+
+      await expect(
+        queue.enqueue({ jobId: 'j', tier: 'slow', summary: 's', reportPath: 'p' }),
+      ).rejects.toThrow('Failed to acquire lock');
+      expect(await fs.exists(lockPath)).toBe(true);
+    } finally {
+      process.kill = originalKill;
+    }
   });
 });

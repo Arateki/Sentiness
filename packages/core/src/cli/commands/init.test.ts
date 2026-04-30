@@ -4,15 +4,17 @@ import {
   InMemoryGitProvider,
   SilentLogger,
 } from '@sentiness/_test-utils';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { initCommand } from './init.js';
 import type { CommandDeps, ParsedArgs } from './types.js';
 
 // Mock the Prompter class to run automatically
 const mockConfirm = vi.fn().mockResolvedValue(true);
+const mockAsk = vi.fn().mockResolvedValue('reports/mutation/mutation.json');
 vi.mock('../wizard/prompts.js', () => {
   return {
     Prompter: class {
+      ask = mockAsk;
       confirm = mockConfirm;
       close = vi.fn();
     },
@@ -20,6 +22,11 @@ vi.mock('../wizard/prompts.js', () => {
 });
 
 describe('initCommand', () => {
+  beforeEach(() => {
+    mockAsk.mockResolvedValue('reports/mutation/mutation.json');
+    mockConfirm.mockResolvedValue(true);
+  });
+
   it('initializes a new project successfully', async () => {
     const fs = new InMemoryFileSystem({
       '/project/package.json': JSON.stringify({
@@ -38,8 +45,6 @@ describe('initCommand', () => {
     };
 
     const args: ParsedArgs = {};
-    mockConfirm.mockResolvedValue(true);
-
     const exitCode = await initCommand(args, deps);
     expect(exitCode).toBe(0);
 
@@ -98,5 +103,33 @@ describe('initCommand', () => {
 
     expect(exitCode).toBe(0);
     expect(await fs.readFile('/project/.gitignore')).toBe('node_modules/\n.sentiness/\n');
+  });
+
+  it('prompts for Stryker reportPath when only JavaScript Stryker config exists', async () => {
+    const fs = new InMemoryFileSystem({
+      '/project/package.json': JSON.stringify({}),
+      '/project/stryker.conf.mjs': 'export default {};',
+    });
+    const logger = new SilentLogger();
+    const deps: CommandDeps = {
+      cwd: '/project',
+      fs,
+      logger,
+      clock: new FixedClock(0),
+      git: new InMemoryGitProvider(),
+      processRunner: {} as unknown as import('@sentiness/check-sdk').ProcessRunner,
+      stdout: { write: vi.fn() },
+    };
+    mockAsk.mockResolvedValue('custom/mutation.json');
+
+    const exitCode = await initCommand({ baseline: false }, deps);
+
+    expect(exitCode).toBe(0);
+    expect(mockAsk).toHaveBeenCalledWith(
+      'Stryker JSON report path',
+      'reports/mutation/mutation.json',
+    );
+    const config = JSON.parse(await fs.readFile('/project/sentiness.config.json'));
+    expect(config.checks.stryker.reportPath).toBe('custom/mutation.json');
   });
 });

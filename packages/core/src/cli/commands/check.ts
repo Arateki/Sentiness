@@ -71,7 +71,9 @@ export async function checkCommand(args: ParsedArgs, deps: CommandDeps): Promise
     }
     const jobId = randomUUID();
     const resultPath = join(jobsDir, jobId, 'result.json');
-    const originalArgs = process.argv.slice(2).filter((arg) => arg !== '--background');
+    const originalArgs = process.argv
+      .slice(2)
+      .filter((arg) => arg !== '--background' && !arg.startsWith('--background='));
     const jobMeta = await spawner.spawn(
       process.execPath,
       [cliPath, ...originalArgs, `--output=${resultPath}`, `--job-id=${jobId}`],

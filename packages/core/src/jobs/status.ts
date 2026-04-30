@@ -45,23 +45,29 @@ export class JobReader {
 
     try {
       const content = await this.fs.readFile(metaPath);
-      const meta = normalizeJobMeta(JobMetaSchema.parse(JSON.parse(content)));
-
-      if (meta.status === 'running') {
-        if (!this.isAlive(meta.pid)) {
-          const updated = { ...meta, status: 'failed' as const, exitCode: -1 };
-          await this.fs.writeFile(metaPath, `${JSON.stringify(updated, null, 2)}\n`);
-          return updated;
-        }
-      }
-
-      return meta;
+      return normalizeJobMeta(JobMetaSchema.parse(JSON.parse(content)));
     } catch (error) {
       this.logger?.warn(`Failed to read job metadata for ${jobId}`, {
         error: error instanceof Error ? error.message : String(error),
       });
       return undefined;
     }
+  }
+
+  async reconcile(jobId: string): Promise<JobMeta | undefined> {
+    const metaPath = join(this.jobsDir, jobId, 'meta.json');
+    const meta = await this.read(jobId);
+    if (!meta) {
+      return undefined;
+    }
+
+    if (meta.status === 'running' && !this.isAlive(meta.pid)) {
+      const updated = { ...meta, status: 'failed' as const, exitCode: -1 };
+      await this.fs.writeFile(metaPath, `${JSON.stringify(updated, null, 2)}\n`);
+      return updated;
+    }
+
+    return meta;
   }
 
   async readResult(jobId: string): Promise<Report | undefined> {
@@ -94,7 +100,7 @@ export class JobReader {
       if (!stat.isDirectory) {
         continue;
       }
-      const meta = await this.read(entry);
+      const meta = await this.reconcile(entry);
       if (meta) {
         if (!filter?.status || meta.status === filter.status) {
           jobs.push(meta);

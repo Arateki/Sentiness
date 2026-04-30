@@ -15,6 +15,16 @@ const sentinessIgnoreEntries = [
   '.sentiness/pending-feedback.json.lock/',
 ] as const;
 
+const strykerJsConfigCandidates = [
+  'stryker.conf.js',
+  'stryker.conf.mjs',
+  'stryker.conf.cjs',
+  'stryker.config.js',
+  'stryker.config.mjs',
+  'stryker.config.cjs',
+] as const;
+const strykerJsonConfigCandidates = ['stryker.conf.json', 'stryker.config.json'] as const;
+
 function existingIgnoreLines(content: string): ReadonlySet<string> {
   return new Set(
     content
@@ -51,6 +61,28 @@ function enabledCheckSet(args: ParsedArgs): ReadonlySet<string> | undefined {
       .map((check) => check.trim())
       .filter((check) => check.length > 0),
   );
+}
+
+async function hasAnyFile(
+  cwd: string,
+  fs: CommandDeps['fs'],
+  candidates: readonly string[],
+): Promise<boolean> {
+  for (const candidate of candidates) {
+    if (await fs.exists(resolvePath(cwd, candidate))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+async function shouldPromptForStrykerReportPath(
+  cwd: string,
+  fs: CommandDeps['fs'],
+): Promise<boolean> {
+  const hasJsConfig = await hasAnyFile(cwd, fs, strykerJsConfigCandidates);
+  const hasJsonConfig = await hasAnyFile(cwd, fs, strykerJsonConfigCandidates);
+  return hasJsConfig && !hasJsonConfig;
 }
 
 export async function initCommand(args: ParsedArgs, deps: CommandDeps): Promise<number> {
@@ -106,7 +138,20 @@ export async function initCommand(args: ParsedArgs, deps: CommandDeps): Promise<
         selectedChecks ? selectedChecks.has(check.id) : true,
       );
       if (enabled) {
-        checks[check.id] = { enabled: true, tier: check.tier };
+        const checkConfig: Record<string, unknown> = { enabled: true, tier: check.tier };
+        if (check.id === 'stryker' && prompter) {
+          const shouldAskReportPath = await shouldPromptForStrykerReportPath(deps.cwd, deps.fs);
+          if (shouldAskReportPath) {
+            const reportPath = await prompter.ask(
+              'Stryker JSON report path',
+              'reports/mutation/mutation.json',
+            );
+            if (reportPath.trim().length > 0) {
+              checkConfig.reportPath = reportPath.trim();
+            }
+          }
+        }
+        checks[check.id] = checkConfig;
       }
     }
 

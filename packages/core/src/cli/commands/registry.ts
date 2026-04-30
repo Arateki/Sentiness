@@ -135,6 +135,8 @@ export function registerCommands(cli: CAC, deps: CommandDeps): void {
 
   baselineCmd
     .option('--metric <name>', 'Only update the specified metric (update action)')
+    .option('--force', 'Allow metric to regress when used with update (non-idempotent)')
     .option('--fingerprint <sha256>', 'The finding fingerprint to accept (accept action)')
-    .option('--reason <text>', 'Reason for accepting the finding (accept action)');
+    .option('--reason <text>', 'Reason for accepting the finding (accept action)')
+    .option('--tier <tier>', 'Tier to search for the finding (accept action, default: fast)');
 }

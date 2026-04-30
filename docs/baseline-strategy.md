@@ -53,8 +53,12 @@ both the fingerprint and a reason:
 ```sh
 sentiness baseline accept \
   --fingerprint=<sha256> \
-  --reason="Accepted until the legacy module is replaced"
+  --reason="Accepted until the legacy module is replaced" \
+  --tier=fast
 ```
+
+`--tier` defaults to `fast` and searches only that tier. Use `--tier=standard` or `--tier=slow`
+when accepting findings from slower checks so the command does not run unrelated expensive tiers.
 
 This is intentionally explicit. Do not modify `sentiness.config.*` or `.sentiness/baseline.json` by
 hand to make a check pass.
@@ -73,6 +77,10 @@ the metric direction. Use `--metric <check.metric>` to update one metric:
 ```sh
 sentiness baseline update --metric coverage.lineCoverage
 ```
+
+If a targeted metric regressed, Sentiness exits non-zero and leaves the baseline unchanged. Use
+`--force` only for an intentional, reviewed reset; it logs a warning because the change can hide a
+real regression from future runs.
 
 Checks define metric direction through `metricSpecs`. If no direction is supplied, numeric metrics
 default to `higher-is-better`.

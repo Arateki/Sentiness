@@ -148,7 +148,7 @@ export type ProcessRunner = {
   ): Promise<ExecFileResult>;
 };
 
-export type CheckContext = {
+export type CheckContext<TConfig = Record<string, unknown>> = {
   readonly cwd: string;
   readonly tier: Tier;
   readonly trigger: string | null;
@@ -159,16 +159,17 @@ export type CheckContext = {
   readonly logger: Logger;
   readonly fs: FileSystem;
   readonly process: ProcessRunner;
-  readonly checkConfig: Record<string, unknown>;
+  readonly checkConfig: TConfig;
 };
 
-export type Check = {
+export type Check<TConfig = Record<string, unknown>> = {
   readonly id: CheckId;
   readonly category: Category;
   readonly defaultTier: Tier;
   readonly metricSpecs?: Readonly<Record<string, MetricSpec>>;
-  detect(ctx: CheckContext): Promise<DetectResult>;
-  run(ctx: CheckContext): Promise<CheckResult>;
+  readonly configSchema?: { readonly parse: (input: unknown) => TConfig };
+  detect(ctx: CheckContext<TConfig>): Promise<DetectResult>;
+  run(ctx: CheckContext<TConfig>): Promise<CheckResult>;
   dispose?(): Promise<void>;
 };
 

@@ -25,12 +25,21 @@ const IstanbulReportSchema = z.record(z.string(), IstanbulFileCoverageSchema);
 
 const ThresholdConfigSchema = z
   .object({
-    lineCoverage: z.number().optional(),
-    diffLineCoverage: z.number().optional(),
+    lineCoverage: z.number().min(0).max(100).optional(),
+    diffLineCoverage: z.number().min(0).max(100).optional(),
+  })
+  .catchall(z.unknown());
+
+const CoverageConfigSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    tier: z.enum(['fast', 'standard', 'slow']).optional(),
+    thresholds: ThresholdConfigSchema.optional(),
   })
   .catchall(z.unknown());
 
 type IstanbulFileCoverage = z.infer<typeof IstanbulFileCoverageSchema>;
+type CoverageConfig = z.infer<typeof CoverageConfigSchema>;
 
 type CoverageResult = {
   readonly file: string;
@@ -73,7 +82,7 @@ function calculateFileCoverage(fileCov: IstanbulFileCoverage): CoverageResult {
   };
 }
 
-function readThresholds(config: Record<string, unknown>): {
+function readThresholds(config: CoverageConfig): {
   readonly lineCoverage?: number;
   readonly diffLineCoverage?: number;
 } {
@@ -91,7 +100,7 @@ function readThresholds(config: Record<string, unknown>): {
   };
 }
 
-export const coverageCheck: Check = {
+export const coverageCheck: Check<CoverageConfig> = {
   id: checkId,
   category: 'coverage',
   defaultTier: 'slow',
@@ -101,9 +110,15 @@ export const coverageCheck: Check = {
       description: 'Global line coverage percentage',
     },
   },
-  async detect(_ctx) {
-    // Check if the project has a coverage-final.json file or if vitest/jest is configured to emit it.
-    // We just say it's available because there's no CLI tool to detect. The actual run will skip if missing.
+  configSchema: CoverageConfigSchema,
+  async detect(ctx) {
+    const reportPath = join(ctx.cwd, 'coverage/coverage-final.json');
+    if (!(await ctx.fs.exists(reportPath))) {
+      return {
+        available: false,
+        reason: `no Istanbul coverage report at ${reportPath}; configure Vitest/Jest to emit one`,
+      };
+    }
     return { available: true };
   },
   async run(ctx) {

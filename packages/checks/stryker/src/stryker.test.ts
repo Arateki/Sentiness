@@ -90,7 +90,8 @@ describe('stryker', () => {
     const result = await strykerCheck.run(ctx);
 
     expect(result.status).toBe('error');
-    expect(result.errorMessage).toBe('stryker error');
+    expect(result.errorMessage).toContain('exit 1');
+    expect(result.errorMessage).toContain('stryker error');
   });
 
   it('handles empty mutants correctly', async () => {

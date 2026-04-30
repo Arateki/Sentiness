@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 import type { Clock, FileSystem, Logger, Tier } from '@sentiness/check-sdk';
 import { z } from 'zod';
 
@@ -34,6 +34,12 @@ export class PendingQueueLockError extends Error {
 
 const MAX_RETRIES = 5;
 const BASE_BACKOFF_MS = 50;
+const STALE_LOCK_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+const LockOwnerSchema = z.object({
+  pid: z.number(),
+  acquiredAt: z.string(),
+});
 
 export class PendingQueue {
   private readonly lockDir: string;
@@ -44,12 +50,49 @@ export class PendingQueue {
     private readonly clock: Clock,
     private readonly logger?: Logger,
   ) {
-    const _dir = dirname(path);
     this.lockDir = `${path}.lock`;
   }
 
   private async sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private isProcessAlive(pid: number): boolean {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch (error: unknown) {
+      if (error && typeof error === 'object' && 'code' in error) {
+        return error.code === 'EPERM';
+      }
+      return false;
+    }
+  }
+
+  private async isLockStale(): Promise<boolean> {
+    try {
+      const ownerPath = join(this.lockDir, 'owner');
+      if (!(await this.fs.exists(ownerPath))) {
+        return true; // No owner file — orphaned lock
+      }
+      const content = await this.fs.readFile(ownerPath);
+      const owner = LockOwnerSchema.safeParse(JSON.parse(content));
+      if (!owner.success) {
+        return true;
+      }
+      if (!this.isProcessAlive(owner.data.pid)) {
+        return true;
+      }
+      const ageMs = this.clock.now() - new Date(owner.data.acquiredAt).getTime();
+      return ageMs > STALE_LOCK_TTL_MS;
+    } catch {
+      return true; // Unreadable — assume stale
+    }
+  }
+
+  private async clearStaleLock(): Promise<void> {
+    this.logger?.warn(`Removing stale pending queue lock at ${this.lockDir}`);
+    await this.fs.rm(this.lockDir, { recursive: true, force: true });
   }
 
   private async acquireLock(): Promise<void> {
@@ -59,15 +102,22 @@ export class PendingQueue {
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
         await this.fs.mkdir(this.lockDir, { recursive: false });
-        return; // Success
+        // Write owner info so stale detection works if this process dies
+        await this.fs.writeFile(
+          join(this.lockDir, 'owner'),
+          JSON.stringify({ pid: process.pid, acquiredAt: this.clock.isoNow() }),
+        );
+        return;
       } catch (error: unknown) {
         if (error && typeof error === 'object' && 'code' in error && error.code === 'EEXIST') {
-          // Lock is held, backoff and retry
+          if (await this.isLockStale()) {
+            await this.clearStaleLock();
+            continue;
+          }
           const backoff = BASE_BACKOFF_MS * 2 ** attempt;
           await this.sleep(backoff);
           continue;
         }
-        // Throw unexpected errors immediately
         throw error;
       }
     }

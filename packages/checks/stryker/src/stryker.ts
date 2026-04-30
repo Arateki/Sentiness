@@ -47,12 +47,24 @@ const StrykerJsonConfigSchema = z
   })
   .catchall(z.unknown());
 
-function configuredReportPath(ctx: CheckContext): string | undefined {
+const StrykerConfigSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    tier: z.enum(['fast', 'standard', 'slow']).optional(),
+    reportPath: z.string().optional(),
+  })
+  .catchall(z.unknown());
+
+type StrykerConfig = z.infer<typeof StrykerConfigSchema>;
+
+function configuredReportPath(ctx: CheckContext<StrykerConfig>): string | undefined {
   const reportPath = ctx.checkConfig.reportPath;
   return typeof reportPath === 'string' && reportPath.length > 0 ? reportPath : undefined;
 }
 
-async function reportPathFromJsonConfig(ctx: CheckContext): Promise<string | undefined> {
+async function reportPathFromJsonConfig(
+  ctx: CheckContext<StrykerConfig>,
+): Promise<string | undefined> {
   for (const candidate of ['stryker.conf.json', 'stryker.config.json']) {
     const configPath = join(ctx.cwd, candidate);
     if (!(await ctx.fs.exists(configPath))) {
@@ -73,7 +85,7 @@ async function reportPathFromJsonConfig(ctx: CheckContext): Promise<string | und
   return undefined;
 }
 
-async function resolveReportPath(ctx: CheckContext): Promise<string> {
+async function resolveReportPath(ctx: CheckContext<StrykerConfig>): Promise<string> {
   const configured = configuredReportPath(ctx);
   if (configured) {
     return isAbsolute(configured) ? configured : join(ctx.cwd, configured);
@@ -81,7 +93,7 @@ async function resolveReportPath(ctx: CheckContext): Promise<string> {
   return (await reportPathFromJsonConfig(ctx)) ?? join(ctx.cwd, 'reports/mutation/mutation.json');
 }
 
-async function getReport(ctx: CheckContext): Promise<StrykerReport | undefined> {
+async function getReport(ctx: CheckContext<StrykerConfig>): Promise<StrykerReport | undefined> {
   const reportPath = await resolveReportPath(ctx);
   if (!(await ctx.fs.exists(reportPath))) {
     return undefined;
@@ -97,7 +109,7 @@ async function getReport(ctx: CheckContext): Promise<StrykerReport | undefined> 
   }
 }
 
-export const strykerCheck: Check = {
+export const strykerCheck: Check<StrykerConfig> = {
   id: checkId,
   category: 'test-quality',
   defaultTier: 'slow',
@@ -107,6 +119,7 @@ export const strykerCheck: Check = {
       description: 'Killed mutants as percentage of total mutants',
     },
   },
+  configSchema: StrykerConfigSchema,
   async detect(ctx) {
     const result = await ctx.process.execFile('stryker', ['--version'], {
       cwd: ctx.cwd,
@@ -132,7 +145,7 @@ export const strykerCheck: Check = {
         status: 'error',
         findings: [],
         durationMs: 0,
-        errorMessage: runResult.stderr || 'failed to generate or read stryker report',
+        errorMessage: `exit ${runResult.exitCode}: ${runResult.stderr || 'failed to generate or read stryker report'}`,
       };
     }
 

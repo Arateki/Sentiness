@@ -25,8 +25,8 @@ export class JobSpawner {
     const resultPath = join(jobDir, 'result.json');
     const metaPath = join(jobDir, 'meta.json');
 
-    // Create empty log files via the FileSystem interface to satisfy tests
-    // or just to ensure they exist before trying to open them
+    // Initialize log files via the injected FileSystem so in-memory test doubles track their
+    // existence. In production `open(path, 'a')` below would create them regardless.
     await this.fs.writeFile(stdoutPath, '');
     await this.fs.writeFile(stderrPath, '');
 

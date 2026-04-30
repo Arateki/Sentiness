@@ -55,6 +55,10 @@ function mergeStatus(
   return rank[right] > rank[left] ? right : left;
 }
 
+// Invariant: a given check id should only appear in one tier (its defaultTier or configured tier).
+// mergeCheckResult is called when the same id appears in multiple runTier outcomes, which should
+// not happen in practice. If Phase H introduces a check that appears in multiple tiers, resolve
+// the conflict explicitly rather than relying on this spread-merge.
 function mergeCheckResult(left: CheckResult, right: CheckResult): CheckResult {
   const metrics =
     left.metrics || right.metrics ? { ...(left.metrics ?? {}), ...(right.metrics ?? {}) } : null;
@@ -115,15 +119,18 @@ async function findFindingByFingerprint(
   registry: CheckRegistry,
   deps: CommandDeps,
   fingerprint: string,
+  tier: Tier = 'fast',
 ): Promise<Finding | undefined> {
-  for (const tier of allTiers) {
-    const outcome = await runTier(config, registry, deps, tier);
-    const match = allFindings(outcome).find((finding) => finding.fingerprint === fingerprint);
-    if (match) {
-      return match;
-    }
+  const outcome = await runTier(config, registry, deps, tier);
+  return allFindings(outcome).find((finding) => finding.fingerprint === fingerprint);
+}
+
+function tierRetrySuggestion(tier: Tier): string {
+  const alternatives = allTiers.filter((candidate) => candidate !== tier);
+  if (alternatives.length === 0) {
+    return '';
   }
-  return undefined;
+  return ` Try ${alternatives.map((candidate) => `--tier=${candidate}`).join(' or ')} if the finding belongs to another tier.`;
 }
 
 export async function baselineInitCommand(_args: ParsedArgs, deps: CommandDeps): Promise<number> {
@@ -152,11 +159,13 @@ export async function baselineUpdateCommand(args: ParsedArgs, deps: CommandDeps)
 
   const registry = await CheckRegistry.fromConfig(config, deps.cwd);
   const targetMetric = optionalString(args.metric);
+  const forceUpdate = args.force === true;
 
   const currentMetrics = collectMetricBaselines(await runAllTiers(config, registry, deps));
 
   const updatedMetrics = { ...existing.metrics };
   let updatedCount = 0;
+  let hasBlockingRegression = false;
 
   for (const [metricKey, currentMetric] of Object.entries(currentMetrics)) {
     if (targetMetric && metricKey !== targetMetric) {
@@ -171,16 +180,34 @@ export async function baselineUpdateCommand(args: ParsedArgs, deps: CommandDeps)
       continue;
     }
 
-    // Check for improvement (ratchet)
+    // Ratchet: only update when the metric improved
     const improved =
       baselineMetric.direction === 'higher-is-better'
         ? currentMetric.value > baselineMetric.value
         : currentMetric.value < baselineMetric.value;
 
-    if (improved || targetMetric === metricKey) {
+    if (improved) {
       updatedMetrics[metricKey] = { ...baselineMetric, value: currentMetric.value };
       updatedCount++;
+    } else if (targetMetric === metricKey) {
+      // User specifically targeted this metric but it regressed
+      if (forceUpdate) {
+        deps.logger.warn(
+          `Forcing metric "${metricKey}" to regress: ${baselineMetric.value} → ${currentMetric.value}. This is non-idempotent and may hide real regressions.`,
+        );
+        updatedMetrics[metricKey] = { ...baselineMetric, value: currentMetric.value };
+        updatedCount++;
+      } else {
+        deps.logger.warn(
+          `Metric "${metricKey}" regressed from ${baselineMetric.value} to ${currentMetric.value}. Use --force to override.`,
+        );
+        hasBlockingRegression = true;
+      }
     }
+  }
+
+  if (hasBlockingRegression) {
+    return 1;
   }
 
   if (updatedCount > 0) {
@@ -219,10 +246,24 @@ export async function baselineAcceptCommand(args: ParsedArgs, deps: CommandDeps)
   }
 
   const registry = await CheckRegistry.fromConfig(config, deps.cwd);
-  const targetFinding = await findFindingByFingerprint(config, registry, deps, fingerprint);
+  const parsedTier = optionalString(args.tier);
+  const acceptTier: Tier =
+    parsedTier === 'fast' || parsedTier === 'standard' || parsedTier === 'slow'
+      ? parsedTier
+      : 'fast';
+  const targetFinding = await findFindingByFingerprint(
+    config,
+    registry,
+    deps,
+    fingerprint,
+    acceptTier,
+  );
 
   if (!targetFinding) {
-    deps.logger.error(`Finding with fingerprint ${fingerprint} not found in current run.`);
+    deps.logger.warn(`Finding with fingerprint ${fingerprint} not found in tier "${acceptTier}".`);
+    deps.logger.error(
+      `Finding with fingerprint ${fingerprint} not found in current "${acceptTier}" run.${tierRetrySuggestion(acceptTier)}`,
+    );
     return 1;
   }
 
