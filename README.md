@@ -45,7 +45,8 @@ not block on pre-existing debt.
 | Command | Purpose |
 |---|---|
 | `sentiness init` | Create config and local runtime paths. Supports `--yes`, `--checks=<ids>`, and `--no-baseline`. |
-| `sentiness doctor` | Load configured checks, run each check's `detect()`, and report missing tools. |
+| `sentiness doctor` | Load configured checks, run each check's `detect()`, validate any required tool config files, and report install or `init-config` suggestions. |
+| `sentiness init-config` | Create default tool config files for enabled checks that ship a template (e.g. `stryker.conf.json`). Idempotent unless `--force`. |
 | `sentiness check` | Run checks for a tier or trigger and print the normalized report JSON. |
 | `sentiness check --background` | Spawn a background job, then inspect it with `status` and `pending`. |
 | `sentiness baseline init` | Create the initial committed baseline snapshot. |

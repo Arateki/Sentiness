@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export type LockfileKind = 'package-lock' | 'pnpm-lock' | 'yarn-lock';
+type LockfileKind = 'package-lock' | 'pnpm-lock' | 'yarn-lock';
 
 export type LockfilePackages = ReadonlyMap<string, string>;
 

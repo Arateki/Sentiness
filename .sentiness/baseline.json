@@ -1,7 +1,223 @@
 {
   "schemaVersion": "1.0",
-  "createdAt": "2026-04-29T00:14:29.263Z",
-  "createdAtCommit": "24944f649598ef36c5f91199c500004f3988cb06",
-  "suppressed": [],
-  "metrics": {}
+  "createdAt": "2026-04-30T13:09:46.560Z",
+  "createdAtCommit": "020664a0eafdb3f2b7409c8a21d81007c22432da",
+  "suppressed": [
+    {
+      "checkId": "biome",
+      "ruleId": "format",
+      "fingerprint": "07827017f096248abdef60c7c1b4a9f6bbf0e9438cfc53ad2e4537846148a7d1",
+      "location": {
+        "file": "reports/stryker-incremental.json"
+      },
+      "addedAt": "2026-04-30T13:09:46.560Z",
+      "reason": "initial baseline"
+    },
+    {
+      "checkId": "coverage",
+      "ruleId": "coverage-below-threshold",
+      "fingerprint": "12e174cbc4878f1d0a32d8e66a9f3d183d21958f3fe09354aee41298b79f298b",
+      "location": {
+        "file": "packages/core/src/cli/commands/check.ts"
+      },
+      "addedAt": "2026-04-30T13:09:46.560Z",
+      "reason": "initial baseline"
+    },
+    {
+      "checkId": "coverage",
+      "ruleId": "coverage-below-threshold",
+      "fingerprint": "13a80bb624f45a57fa82df99b5d22830fb240f09010867316ea6f02940348e0f",
+      "location": {
+        "file": "packages/checks/lockfile-lint/src/lockfile-lint.ts"
+      },
+      "addedAt": "2026-04-30T13:09:46.560Z",
+      "reason": "initial baseline"
+    },
+    {
+      "checkId": "coverage",
+      "ruleId": "coverage-below-threshold",
+      "fingerprint": "187131e98cd921ace1da50917a77cfca64a0e7d119e01156190dded9e18c7a1d",
+      "location": {
+        "file": "packages/core/src/cli/wizard/prompts.ts"
+      },
+      "addedAt": "2026-04-30T13:09:46.560Z",
+      "reason": "initial baseline"
+    },
+    {
+      "checkId": "coverage",
+      "ruleId": "coverage-below-threshold",
+      "fingerprint": "188a6482639ccc23f8bf2f9376aa8f3cb58b30547d513ab2ca9e7005f3a79bf6",
+      "location": {
+        "file": "packages/core/src/cli/commands/status.ts"
+      },
+      "addedAt": "2026-04-30T13:09:46.560Z",
+      "reason": "initial baseline"
+    },
+    {
+      "checkId": "coverage",
+      "ruleId": "coverage-below-threshold",
+      "fingerprint": "2f0781f606e18b51464184dc9a5c47ec2666413c0bb26660c1c69319a87167be",
+      "location": {
+        "file": "packages/checks/stryker/src/stryker.ts"
+      },
+      "addedAt": "2026-04-30T13:09:46.560Z",
+      "reason": "initial baseline"
+    },
+    {
+      "checkId": "coverage",
+      "ruleId": "coverage-below-threshold",
+      "fingerprint": "39c451f7c4cf257b8db00232d1c9df4225ccdf8da8b67064f45929f0bffe6a44",
+      "location": {
+        "file": "packages/checks/jscpd/src/jscpd.ts"
+      },
+      "addedAt": "2026-04-30T13:09:46.560Z",
+      "reason": "initial baseline"
+    },
+    {
+      "checkId": "coverage",
+      "ruleId": "coverage-below-threshold",
+      "fingerprint": "49239728af08bc7a3e4aaf51914968cc5658d6e5d160e411c3512f2c42566a10",
+      "location": {
+        "file": "packages/checks/semgrep/src/normalize.ts"
+      },
+      "addedAt": "2026-04-30T13:09:46.560Z",
+      "reason": "initial baseline"
+    },
+    {
+      "checkId": "coverage",
+      "ruleId": "coverage-below-threshold",
+      "fingerprint": "5970304eb8655c5c307b23e5e42ab7ca8839f23cfa9547d95f57439ee623d762",
+      "location": {
+        "file": "packages/core/src/git/git.ts"
+      },
+      "addedAt": "2026-04-30T13:09:46.560Z",
+      "reason": "initial baseline"
+    },
+    {
+      "checkId": "coverage",
+      "ruleId": "coverage-below-threshold",
+      "fingerprint": "6d636a45206f247e965f1dcc105a0a97bc1a2749d5094ca91a5d382448981fc7",
+      "location": {
+        "file": "packages/core/src/cli/commands/pending.ts"
+      },
+      "addedAt": "2026-04-30T13:09:46.560Z",
+      "reason": "initial baseline"
+    },
+    {
+      "checkId": "coverage",
+      "ruleId": "coverage-below-threshold",
+      "fingerprint": "7a2d3a55c95624e5e825dd3840dfe8d35b80c5372e3de93b0fd6f96dbab1aff1",
+      "location": {
+        "file": "packages/checks/osv-scanner/src/normalize.ts"
+      },
+      "addedAt": "2026-04-30T13:09:46.560Z",
+      "reason": "initial baseline"
+    },
+    {
+      "checkId": "coverage",
+      "ruleId": "coverage-below-threshold",
+      "fingerprint": "92cc2534c3e9b935e4c0818b03e9eaad4467352298139f514cb987099eaaabe9",
+      "location": {
+        "file": "packages/checks/biome/src/normalize.ts"
+      },
+      "addedAt": "2026-04-30T13:09:46.560Z",
+      "reason": "initial baseline"
+    },
+    {
+      "checkId": "coverage",
+      "ruleId": "coverage-below-threshold",
+      "fingerprint": "9798f16ad67c19d404712b0df4fe0743d64774d7927eb0edb017891e90820dfc",
+      "location": {
+        "file": "packages/checks/dependency-cruiser/src/normalize.ts"
+      },
+      "addedAt": "2026-04-30T13:09:46.560Z",
+      "reason": "initial baseline"
+    },
+    {
+      "checkId": "coverage",
+      "ruleId": "coverage-below-threshold",
+      "fingerprint": "a044b739956103106ea1311e5308459384bd3e004e23eaff7c9f275e1d218194",
+      "location": {
+        "file": "packages/checks/semgrep/src/semgrep.ts"
+      },
+      "addedAt": "2026-04-30T13:09:46.560Z",
+      "reason": "initial baseline"
+    },
+    {
+      "checkId": "coverage",
+      "ruleId": "coverage-below-threshold",
+      "fingerprint": "a51133196904a07c6b35a9f6c6af54864bdec0a89fa00e4175a72bcb6919fb24",
+      "location": {
+        "file": "packages/core/src/fs/node-fs.ts"
+      },
+      "addedAt": "2026-04-30T13:09:46.560Z",
+      "reason": "initial baseline"
+    },
+    {
+      "checkId": "biome",
+      "ruleId": "format",
+      "fingerprint": "a77c6b21ce428da856e1793fb87b49dce42a9dd8a636c9a3bcde28925527db60",
+      "location": {
+        "file": "reports/mutation/mutation.json"
+      },
+      "addedAt": "2026-04-30T13:09:46.560Z",
+      "reason": "initial baseline"
+    },
+    {
+      "checkId": "coverage",
+      "ruleId": "coverage-below-threshold",
+      "fingerprint": "b53823ab5fdb09a383fa155d71d797350bc6a71a26cc41fa86a18a2dbbbcc4aa",
+      "location": {
+        "file": "packages/core/src/cli/commands/registry.ts"
+      },
+      "addedAt": "2026-04-30T13:09:46.560Z",
+      "reason": "initial baseline"
+    },
+    {
+      "checkId": "coverage",
+      "ruleId": "coverage-below-threshold",
+      "fingerprint": "b91c5de9bbff1948b419eebc9e9021cc6da7e323d846dcb2f36ec21bdd3f256d",
+      "location": {
+        "file": "packages/checks/osv-scanner/src/osv-scanner.ts"
+      },
+      "addedAt": "2026-04-30T13:09:46.560Z",
+      "reason": "initial baseline"
+    },
+    {
+      "checkId": "coverage",
+      "ruleId": "coverage-below-threshold",
+      "fingerprint": "c4bd3d841aa37448781d11712a90dda73f3164078186be3c827fa6d3ef896976",
+      "location": {
+        "file": "packages/checks/dependency-cruiser/src/dependency-cruiser.ts"
+      },
+      "addedAt": "2026-04-30T13:09:46.560Z",
+      "reason": "initial baseline"
+    },
+    {
+      "checkId": "coverage",
+      "ruleId": "coverage-below-threshold",
+      "fingerprint": "d0357130c874a7b6b22ccc11148b6e4eaa83106d65dd8801a3e667a86f126a30",
+      "location": {
+        "file": "packages/_test-utils/src/in-memory-git.ts"
+      },
+      "addedAt": "2026-04-30T13:09:46.560Z",
+      "reason": "initial baseline"
+    },
+    {
+      "checkId": "coverage",
+      "ruleId": "coverage-below-threshold",
+      "fingerprint": "e5c210f6b3fda5690a4860ee3972980a565e971f43747a795d4666c6908d53d3",
+      "location": {
+        "file": "packages/checks/biome/src/biome.ts"
+      },
+      "addedAt": "2026-04-30T13:09:46.560Z",
+      "reason": "initial baseline"
+    }
+  ],
+  "metrics": {
+    "coverage.lineCoverage": {
+      "value": 87.20266412940057,
+      "direction": "higher-is-better"
+    }
+  }
 }

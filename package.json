@@ -28,9 +28,11 @@
     "@sentiness/check-osv-scanner": "workspace:*",
     "@sentiness/check-semgrep": "workspace:*",
     "@sentiness/check-stryker": "workspace:*",
+    "@stryker-mutator/core": "^9.6.1",
     "@types/node": "latest",
     "@vitest/coverage-v8": "latest",
     "fast-check": "latest",
+    "knip": "^6.9.0",
     "typescript": "latest",
     "vitest": "latest"
   }

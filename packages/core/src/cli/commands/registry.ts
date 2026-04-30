@@ -8,6 +8,7 @@ import {
 import { checkCommand } from './check.js';
 import { doctorCommand } from './doctor.js';
 import { initCommand } from './init.js';
+import { initConfigCommand } from './init-config.js';
 import { installHooksCommand } from './install-hooks.js';
 import { installSkillCommand } from './install-skill.js';
 import { pendingCommand } from './pending.js';
@@ -95,6 +96,12 @@ export function registerCommands(cli: CAC, deps: CommandDeps): void {
     .action(wrap(checkCommand, deps));
 
   cli.command('doctor', 'Diagnose configured checks').action(wrap(doctorCommand, deps));
+
+  cli
+    .command('init-config', 'Create default tool config files for enabled checks that need them')
+    .option('--check <id>', 'Only initialize this check id')
+    .option('--force', 'Overwrite existing config files')
+    .action(wrap(initConfigCommand, deps));
 
   cli
     .command('status [jobId]', 'Check status of a background job')

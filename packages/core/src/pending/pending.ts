@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import type { Clock, FileSystem, Logger, Tier } from '@sentiness/check-sdk';
 import { z } from 'zod';
 
-export interface PendingItem {
+interface PendingItem {
   readonly id: string;
   readonly jobId: string;
   readonly createdAt: string;
@@ -25,7 +25,7 @@ const PendingItemSchema = z.object({
 
 const PendingItemsSchema = z.array(PendingItemSchema);
 
-export class PendingQueueLockError extends Error {
+class PendingQueueLockError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'PendingQueueLockError';

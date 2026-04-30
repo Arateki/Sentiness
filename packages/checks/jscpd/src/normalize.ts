@@ -15,7 +15,7 @@ export type NormalizedJscpdDuplicate = {
   readonly snippet?: string;
 };
 
-export type JscpdMetrics = {
+type JscpdMetrics = {
   readonly duplicatedLines?: number;
   readonly duplicatedTokens?: number;
   readonly duplicationPercentage?: number;

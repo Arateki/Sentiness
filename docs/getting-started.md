@@ -44,6 +44,17 @@ sentiness doctor
 sentiness baseline init
 ```
 
+Some checks need a tool-level config file (for example `stryker.conf.json`) before they can run.
+`doctor` reports those gaps with a `config.configured: false` block plus a `configSuggestion`.
+Generate the default template with:
+
+```sh
+sentiness init-config --check=stryker
+```
+
+Re-running `init-config` is idempotent. Use `--force` only when you intentionally want to overwrite
+your existing tool config.
+
 `init` creates:
 
 - `sentiness.config.json`

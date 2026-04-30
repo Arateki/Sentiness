@@ -1,0 +1,24 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "workspaces": {
+    ".": {
+      "ignoreDependencies": [
+        "@sentiness/check-biome",
+        "@sentiness/check-coverage",
+        "@sentiness/check-dependency-cruiser",
+        "@sentiness/check-deps-diff",
+        "@sentiness/check-jscpd",
+        "@sentiness/check-knip",
+        "@sentiness/check-lockfile-lint",
+        "@sentiness/check-osv-scanner",
+        "@sentiness/check-semgrep",
+        "@sentiness/check-stryker",
+        "@stryker-mutator/core"
+      ]
+    },
+    "examples/demo-project": {
+      "entry": ["src/index.ts"],
+      "ignoreDependencies": ["@biomejs/biome", "@sentiness/check-biome"]
+    }
+  }
+}

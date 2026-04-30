@@ -5,7 +5,7 @@ export type ErroredCheck = {
   readonly errorMessage?: string;
 };
 
-export type AgentInstructions = {
+type AgentInstructions = {
   readonly blocking: boolean;
   readonly mustFix: readonly string[];
   readonly shouldFix: readonly string[];

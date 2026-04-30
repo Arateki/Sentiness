@@ -9,4 +9,6 @@ dist/
 .sentiness/jobs/
 .sentiness/cache/
 .sentiness/pending-feedback.json
+reports/
+.stryker-tmp/
 *.log

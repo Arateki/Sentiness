@@ -23,7 +23,6 @@
   },
   "devDependencies": {
     "@sentiness/_test-utils": "workspace:*",
-    "fast-check": "latest",
     "typescript": "latest",
     "vitest": "latest"
   }

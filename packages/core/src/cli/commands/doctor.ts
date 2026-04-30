@@ -1,3 +1,5 @@
+import { isAbsolute, join } from 'node:path';
+import type { Check, FileSystem } from '@sentiness/check-sdk';
 import { loadConfig } from '../../config/config.js';
 import { CheckRegistry } from '../../registry/registry.js';
 import type { CommandDeps, ParsedArgs } from './types.js';
@@ -16,6 +18,36 @@ function installSuggestion(checkId: string): string | undefined {
   return suggestions[checkId];
 }
 
+type ConfigStatus = {
+  readonly configured: boolean;
+  readonly expectedFiles: readonly string[];
+  readonly foundFile?: string;
+  readonly canCreateDefault: boolean;
+};
+
+async function inspectConfig(check: Check, cwd: string, fs: FileSystem): Promise<ConfigStatus> {
+  const expected = check.configFiles ?? [];
+  if (expected.length === 0) {
+    return { configured: true, expectedFiles: [], canCreateDefault: false };
+  }
+  for (const candidate of expected) {
+    const path = isAbsolute(candidate) ? candidate : join(cwd, candidate);
+    if (await fs.exists(path)) {
+      return {
+        configured: true,
+        expectedFiles: expected,
+        foundFile: candidate,
+        canCreateDefault: check.defaultConfig !== undefined,
+      };
+    }
+  }
+  return {
+    configured: false,
+    expectedFiles: expected,
+    canCreateDefault: check.defaultConfig !== undefined,
+  };
+}
+
 export async function doctorCommand(_args: ParsedArgs, deps: CommandDeps): Promise<number> {
   const config = await loadConfig(deps.cwd, deps.fs);
   const registry = await CheckRegistry.fromConfig(config, deps.cwd);
@@ -23,6 +55,12 @@ export async function doctorCommand(_args: ParsedArgs, deps: CommandDeps): Promi
     registry.list().map(async (check) => {
       const controller = new AbortController();
       const checkConfig = config.checks[check.id] ?? { enabled: true };
+      const configStatus = await inspectConfig(check, deps.cwd, deps.fs);
+      const configBlock = configStatus.expectedFiles.length > 0 ? { config: configStatus } : {};
+      const initSuggestion =
+        !configStatus.configured && configStatus.canCreateDefault
+          ? { configSuggestion: `sentiness init-config --check=${check.id}` }
+          : {};
       try {
         const detect = await check.detect({
           cwd: deps.cwd,
@@ -49,6 +87,8 @@ export async function doctorCommand(_args: ParsedArgs, deps: CommandDeps): Promi
           ...(!detect.available && installSuggestion(check.id)
             ? { suggestion: installSuggestion(check.id) }
             : {}),
+          ...configBlock,
+          ...initSuggestion,
         };
       } catch (error) {
         return {
@@ -58,11 +98,15 @@ export async function doctorCommand(_args: ParsedArgs, deps: CommandDeps): Promi
           available: false,
           reason: error instanceof Error ? error.message : 'check detection failed',
           ...(installSuggestion(check.id) ? { suggestion: installSuggestion(check.id) } : {}),
+          ...configBlock,
+          ...initSuggestion,
         };
       }
     }),
   );
-  const ok = registry.loadFailures().length === 0 && checks.every((check) => check.available);
+  const ok =
+    registry.loadFailures().length === 0 &&
+    checks.every((check) => check.available && (check.config?.configured ?? true));
   deps.stdout.write(
     `${JSON.stringify(
       {

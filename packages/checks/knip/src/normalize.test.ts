@@ -78,4 +78,46 @@ describe('normalizeKnipOutput', () => {
 
     expect(issues.find((i) => i.name === 'justAString')).toBeUndefined();
   });
+
+  it('handles Knip v6 per-file issues array with file as default location', () => {
+    const issues = normalizeKnipOutput({
+      issues: [
+        {
+          file: 'packages/example/package.json',
+          devDependencies: [{ name: 'jest', line: 21, col: 6 }],
+        },
+        {
+          file: 'src/unused.ts',
+          files: [{ name: 'src/unused.ts' }],
+        },
+        {
+          file: 'src/api.ts',
+          exports: [{ name: 'unusedFn', line: 7, col: 14 }],
+          types: [{ name: 'UnusedType', line: 12, col: 18 }],
+        },
+      ],
+    });
+
+    const byRule = new Map(issues.map((issue) => [issue.ruleId, issue]));
+    expect(byRule.get('unused-dev-dependencies')).toMatchObject({
+      file: 'packages/example/package.json',
+      name: 'jest',
+      line: 21,
+      column: 6,
+    });
+    expect(byRule.get('unused-files')).toMatchObject({
+      file: 'src/unused.ts',
+      name: 'src/unused.ts',
+    });
+    expect(byRule.get('unused-exports')).toMatchObject({
+      file: 'src/api.ts',
+      name: 'unusedFn',
+      line: 7,
+      column: 14,
+    });
+    expect(byRule.get('unused-types')).toMatchObject({
+      file: 'src/api.ts',
+      name: 'UnusedType',
+    });
+  });
 });

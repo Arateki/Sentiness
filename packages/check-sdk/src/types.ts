@@ -172,12 +172,25 @@ export type CheckContext<TConfig = Record<string, unknown>> = {
   readonly checkConfig: TConfig;
 };
 
+export type CheckDefaultConfig = {
+  readonly path: string;
+  readonly content: string;
+};
+
 export type Check<TConfig = Record<string, unknown>> = {
   readonly id: CheckId;
   readonly category: Category;
   readonly defaultTier: Tier;
   readonly metricSpecs?: Readonly<Record<string, MetricSpec>>;
   readonly configSchema?: { readonly parse: (input: unknown) => TConfig };
+  /**
+   * Tool-config files that satisfy this check at runtime. The check is
+   * considered configured when any of these exist at the project root. If
+   * absent, doctor flags the gap; `sentiness init-config` writes
+   * `defaultConfig()` when defined.
+   */
+  readonly configFiles?: readonly string[];
+  readonly defaultConfig?: () => CheckDefaultConfig;
   detect(ctx: CheckContext<TConfig>): Promise<DetectResult>;
   run(ctx: CheckContext<TConfig>): Promise<CheckResult>;
   dispose?(): Promise<void>;

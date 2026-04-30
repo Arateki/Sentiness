@@ -109,6 +109,48 @@ async function getReport(ctx: CheckContext<StrykerConfig>): Promise<StrykerRepor
   }
 }
 
+const STRYKER_CONFIG_FILES = [
+  'stryker.conf.json',
+  'stryker.config.json',
+  'stryker.conf.js',
+  'stryker.conf.mjs',
+  'stryker.conf.cjs',
+  'stryker.config.js',
+  'stryker.config.mjs',
+  'stryker.config.cjs',
+] as const;
+
+function defaultStrykerConfig(): { path: string; content: string } {
+  return {
+    path: 'stryker.conf.json',
+    content: `{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "packageManager": "pnpm",
+  "testRunner": "command",
+  "commandRunner": {
+    "command": "pnpm test"
+  },
+  "reporters": ["json", "progress", "clear-text"],
+  "jsonReporter": {
+    "fileName": ".sentiness/cache/stryker/report.json"
+  },
+  "mutate": [
+    "src/**/*.ts",
+    "packages/*/src/**/*.ts",
+    "!**/*.test.ts",
+    "!**/dist/**",
+    "!**/node_modules/**"
+  ],
+  "incremental": true,
+  "incrementalFile": ".sentiness/cache/stryker/incremental.json",
+  "coverageAnalysis": "off",
+  "tempDirName": ".sentiness/cache/stryker/tmp",
+  "cleanTempDir": true
+}
+`,
+  };
+}
+
 export const strykerCheck: Check<StrykerConfig> = {
   id: checkId,
   category: 'test-quality',
@@ -120,6 +162,8 @@ export const strykerCheck: Check<StrykerConfig> = {
     },
   },
   configSchema: StrykerConfigSchema,
+  configFiles: STRYKER_CONFIG_FILES,
+  defaultConfig: defaultStrykerConfig,
   async detect(ctx) {
     const result = await ctx.process.execFile('stryker', ['--version'], {
       cwd: ctx.cwd,

@@ -62,6 +62,18 @@ The implementation should progress in usable slices, not by completing the whole
      `package-lock.json`/`npm-shrinkwrap.json` files parse successfully. pnpm and Yarn lockfiles
      remain skipped pending dedicated parsers.
 
+10. **Phase J - Tool-config validation and bootstrap**
+    - Goal: surface missing tool-level config files (e.g. `stryker.conf.json`) in `doctor` and
+      let users generate sensible defaults from the CLI.
+    - Scope: extend the `Check` SDK with `configFiles` and `defaultConfig`, update `doctor` to
+      validate them, and add `sentiness init-config [--check=<id>] [--force]`.
+    - Status: **done**; Stryker now ships a Biome-clean default template (`command` test runner with
+      `pnpm test`, mutate globs covering both single-package and `packages/*` monorepos), `doctor`
+      exits non-zero when an enabled check's config file is missing, and `init-config` writes the
+      template idempotently. Knip's v6 per-file `issues[]` shape is now correctly normalized; a
+      project-level `knip.json` documents dynamic-import workspaces (`@sentiness/check-*`) and
+      demo-project entrypoints. `pending` and `init-config` are also now covered by unit tests.
+
 ## Sprint corretivo (2026-04-28 / 2026-04-29)
 
 A post-implementation audit identified a set of bugs and spec gaps that were addressed in a dedicated correction sprint. Two analysis documents were produced and committed:

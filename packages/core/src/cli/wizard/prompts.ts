@@ -4,7 +4,7 @@ import type { OutputWriter } from '../commands/types.js';
 
 export type PromptInterface = Pick<Interface, 'question' | 'close'>;
 
-export type PrompterOptions = {
+type PrompterOptions = {
   readonly writer?: OutputWriter;
   readonly readline?: PromptInterface;
   readonly input?: NodeJS.ReadableStream;
