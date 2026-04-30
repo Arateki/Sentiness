@@ -21,6 +21,7 @@ describe('reporter', () => {
       baseRef: null,
       headRef: 'HEAD',
       changedFiles: [],
+      changedRanges: new Map(),
     },
   };
 

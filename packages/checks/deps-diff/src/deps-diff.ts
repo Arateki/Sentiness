@@ -7,6 +7,12 @@ import {
   type Finding,
 } from '@sentiness/check-sdk';
 import { z } from 'zod';
+import {
+  type DetectedLockfile,
+  type LockfilePackages,
+  parseLockfile,
+  SUPPORTED_LOCKFILES,
+} from './lockfile.js';
 
 const checkId = asCheckId('deps-diff');
 
@@ -34,10 +40,23 @@ type DependencySectionName = (typeof dependencySectionNames)[number];
 type PackageJson = z.infer<typeof PackageJsonSchema>;
 type DepsDiffConfig = z.infer<typeof DepsDiffConfigSchema>;
 
+type DirectRuleId = 'new-dependency' | 'removed-dependency' | 'major-version-bump';
+type TransitiveRuleId =
+  | 'new-transitive-dependency'
+  | 'removed-transitive-dependency'
+  | 'major-version-bump-transitive';
+
 type DependencyChange = {
-  readonly ruleId: 'new-dependency' | 'removed-dependency' | 'major-version-bump';
+  readonly ruleId: DirectRuleId;
   readonly severity: 'warning' | 'info';
   readonly section: DependencySectionName;
+  readonly name: string;
+  readonly before?: string;
+  readonly after?: string;
+};
+
+type TransitiveChange = {
+  readonly ruleId: TransitiveRuleId;
   readonly name: string;
   readonly before?: string;
   readonly after?: string;
@@ -159,6 +178,112 @@ function suggestionFor(change: DependencyChange): Finding['suggestion'] | undefi
   };
 }
 
+function diffTransitive(
+  before: LockfilePackages,
+  after: LockfilePackages,
+  directNames: ReadonlySet<string>,
+): readonly TransitiveChange[] {
+  const changes: TransitiveChange[] = [];
+  for (const [name, afterVersion] of after) {
+    if (directNames.has(name)) {
+      continue;
+    }
+    const beforeVersion = before.get(name);
+    if (beforeVersion === undefined) {
+      changes.push({ ruleId: 'new-transitive-dependency', name, after: afterVersion });
+      continue;
+    }
+    const beforeMajor = majorVersion(beforeVersion);
+    const afterMajor = majorVersion(afterVersion);
+    if (beforeMajor !== undefined && afterMajor !== undefined && beforeMajor !== afterMajor) {
+      changes.push({
+        ruleId: 'major-version-bump-transitive',
+        name,
+        before: beforeVersion,
+        after: afterVersion,
+      });
+    }
+  }
+  for (const [name, beforeVersion] of before) {
+    if (directNames.has(name)) {
+      continue;
+    }
+    if (!after.has(name)) {
+      changes.push({ ruleId: 'removed-transitive-dependency', name, before: beforeVersion });
+    }
+  }
+  return changes;
+}
+
+function transitiveMessage(change: TransitiveChange): string {
+  if (change.ruleId === 'new-transitive-dependency') {
+    return `New transitive dependency: ${change.name}@${change.after ?? 'unknown'}`;
+  }
+  if (change.ruleId === 'removed-transitive-dependency') {
+    return `Removed transitive dependency: ${change.name}@${change.before ?? 'unknown'}`;
+  }
+  return `Major bump in transitive dependency: ${change.name} ${change.before ?? '?'} -> ${change.after ?? '?'}`;
+}
+
+function toTransitiveFinding(change: TransitiveChange, lockfilePath: string): Finding {
+  const ruleId = asRuleId(change.ruleId);
+  const version = change.after ?? change.before;
+  return {
+    id: `deps-diff:${change.ruleId}:${change.name}`,
+    checkId,
+    ruleId,
+    severity: 'info',
+    message: transitiveMessage(change),
+    location: {
+      file: lockfilePath,
+      packageName: change.name,
+      ...(version ? { packageVersion: version } : {}),
+    },
+    suggestion: {
+      kind: 'other',
+      description: `Surface ${change.name} in the PR description so reviewers can audit the transitive change.`,
+    },
+    fingerprint: computeFingerprint({
+      checkId,
+      ruleId,
+      relativeFilePath: lockfilePath,
+      lineContent: '',
+      extraDiscriminator: `transitive:${change.name}:${change.before ?? ''}:${change.after ?? ''}`,
+    }),
+  };
+}
+
+async function loadLockfileAtBoth(
+  ctx: Parameters<Check<DepsDiffConfig>['run']>[0],
+  baseRef: string,
+  candidates: readonly DetectedLockfile[],
+): Promise<
+  | { readonly path: string; readonly current: LockfilePackages; readonly base: LockfilePackages }
+  | undefined
+> {
+  if (!ctx.git) {
+    return undefined;
+  }
+  for (const candidate of candidates) {
+    const fullPath = join(ctx.cwd, candidate.path);
+    if (!(await ctx.fs.exists(fullPath))) {
+      continue;
+    }
+    const baseContent = await ctx.git.fileContentAtRef(ctx.cwd, baseRef, candidate.path);
+    if (baseContent === null) {
+      continue;
+    }
+    const currentContent = await ctx.fs.readFile(fullPath);
+    const current = parseLockfile(candidate.kind, currentContent);
+    const base = parseLockfile(candidate.kind, baseContent);
+    if (!current || !base) {
+      continue;
+    }
+    return { path: candidate.path, current, base };
+  }
+  return undefined;
+}
+
 function toFinding(change: DependencyChange, currentContent: string, baseContent: string): Finding {
   const ruleId = asRuleId(change.ruleId);
   const line =
@@ -256,14 +381,32 @@ export const depsDiffCheck: Check<DepsDiffConfig> = {
     const changes = dependencySections(ctx.checkConfig).flatMap((section) =>
       diffSection(section, basePackage[section] ?? {}, currentPackage[section] ?? {}),
     );
-    const findings = changes.map((change) => toFinding(change, currentContent, baseContent));
+    const directFindings = changes.map((change) => toFinding(change, currentContent, baseContent));
+
+    const directNames = new Set(changes.map((change) => change.name));
+    for (const section of dependencySections(ctx.checkConfig)) {
+      for (const name of Object.keys(currentPackage[section] ?? {})) {
+        directNames.add(name);
+      }
+      for (const name of Object.keys(basePackage[section] ?? {})) {
+        directNames.add(name);
+      }
+    }
+
+    const lockfile = await loadLockfileAtBoth(ctx, baseRef, SUPPORTED_LOCKFILES);
+    const transitiveFindings = lockfile
+      ? diffTransitive(lockfile.base, lockfile.current, directNames).map((change) =>
+          toTransitiveFinding(change, lockfile.path),
+        )
+      : [];
+    const findings = [...directFindings, ...transitiveFindings];
 
     return {
       status: findings.length > 0 ? 'violations' : 'ok',
       findings,
       durationMs: 0,
       metrics: {
-        transitiveDiffAvailable: false,
+        transitiveDiffAvailable: lockfile !== undefined,
       },
     };
   },

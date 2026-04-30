@@ -1,4 +1,10 @@
-import type { CheckMetrics, CheckResult, Finding } from '@sentiness/check-sdk';
+import type {
+  ChangedLineRanges,
+  CheckMetrics,
+  CheckResult,
+  Finding,
+  LineRange,
+} from '@sentiness/check-sdk';
 import type { RunOutcome } from '../runner/runner.js';
 import type { BaselineSnapshot, MetricBaseline } from './baseline.js';
 
@@ -34,11 +40,40 @@ function tagFinding(finding: Finding, introducedInDiff: boolean): Finding {
   return { ...finding, introducedInDiff };
 }
 
+function lineWithinRanges(line: number, ranges: readonly LineRange[]): boolean {
+  for (const range of ranges) {
+    if (line >= range.startLine && line <= range.endLine) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isFindingInDiff(
+  finding: Finding,
+  changedFiles: ReadonlySet<string>,
+  changedRanges: ChangedLineRanges,
+): boolean {
+  const fileInDiff = changedFiles.has(finding.location.file);
+  if (!fileInDiff) {
+    return false;
+  }
+  const ranges = changedRanges.get(finding.location.file);
+  // If we have ranges for this file and the finding has a precise line,
+  // restrict the match to lines actually inside a hunk.
+  if (ranges && ranges.length > 0 && typeof finding.location.startLine === 'number') {
+    return lineWithinRanges(finding.location.startLine, ranges);
+  }
+  // No precise line available (e.g. dependency findings) — fall back to file-level.
+  return true;
+}
+
 export function applyBaseline(
   findings: readonly Finding[],
   baseline: BaselineSnapshot | undefined,
   changedFiles: readonly string[],
   diffOnly: boolean,
+  changedRanges: ChangedLineRanges = new Map(),
 ): FilterResult {
   const suppressed = suppressedFingerprints(baseline);
   const changed = new Set(changedFiles);
@@ -50,7 +85,7 @@ export function applyBaseline(
       suppressedCount += 1;
       continue;
     }
-    const introducedInDiff = changed.has(finding.location.file);
+    const introducedInDiff = isFindingInDiff(finding, changed, changedRanges);
     if (diffOnly && !introducedInDiff) {
       continue;
     }
@@ -130,6 +165,7 @@ export function applyBaselineToOutcome(
         baseline,
         outcome.context.changedFiles,
         options.diffOnly,
+        outcome.context.changedRanges,
       );
       suppressedCount += filtered.suppressedCount;
       results.set(checkId, resultWithFindings(result, filtered.findings));

@@ -4,26 +4,48 @@ Date: 2026-04-30
 
 ## Current Status
 
-- Phase H is implemented.
-- New check packages: dependency-cruiser, deps-diff, lockfile-lint, osv-scanner, jscpd, and semgrep.
-- The SDK `CheckContext` now exposes `git?: GitProvider`; the runner and doctor pass the provider so
-  `deps-diff` can compare current `package.json` against a Git base ref.
-- Root package wiring and `pnpm-lock.yaml` include the six new workspace packages.
-- Release-package checks now include all public check packages.
+- Phase I is implemented: hunk/line-level `--diff` filtering and transitive deps-diff for npm
+  lockfiles.
+- All previous phases (A–H) remain done. The CLI is usable end-to-end: `pnpm sentiness doctor`,
+  `pnpm sentiness check`, baseline workflows, background jobs, adapters, and 10 check packages.
 
-## Phase H Notes
+## Phase I Notes
 
-- `deps-diff` reports direct dependency additions, removals, and major-version bumps. It does not
-  parse transitive lockfile changes yet and reports `transitiveDiffAvailable: false`.
-- `dependency-cruiser`, `jscpd`, and `semgrep` emit `location.startLine` when their JSON reports
-  include line data.
-- `osv-scanner` and `lockfile-lint` are package/lockfile-level checks, so their findings point at
-  lockfiles with package metadata when available.
-- The init wizard knows all Phase H checks, but the heavier checks default to disabled in
-  non-interactive init unless explicitly selected through `--checks=...`.
+- `GitProvider` gained `changedLineRanges(cwd, baseRef)`. The Node-backed implementation parses
+  `git diff --unified=0 --no-color --diff-filter=ACMRT` hunk headers; `parseChangedLineRanges` is
+  exported from `packages/core/src/git/git.ts` and is unit-tested.
+- `RunContext` and `CheckContext` now carry `changedRanges: ChangedLineRanges`. Runner only fetches
+  ranges in `--diff` mode; otherwise the map is empty.
+- `applyBaseline` takes the ranges as an optional fifth argument. A finding with a precise
+  `location.startLine` is `introducedInDiff` only when that line falls inside a hunk; findings
+  without a line (dependency, package, repository-level) keep falling back to file-level matching.
+  In `--diff` mode, findings with a line outside the hunks are dropped.
+- `@sentiness/check-deps-diff` now parses `package-lock.json` and `npm-shrinkwrap.json` (lockfile
+  v3, hoisted versions only). When both base and current lockfiles parse, transitive findings are
+  emitted at `info` severity with rule IDs `new-transitive-dependency`,
+  `removed-transitive-dependency`, and `major-version-bump-transitive`. The check sets
+  `metrics.transitiveDiffAvailable: true` only when transitive parsing succeeded.
+- pnpm-lock.yaml and yarn.lock parsers are not implemented yet. Projects using only those lockfiles
+  keep `transitiveDiffAvailable: false`, exactly as before.
+
+## Validation Run
+
+```sh
+pnpm typecheck
+pnpm lint
+pnpm test
+pnpm test:e2e
+pnpm check:release-packages
+pnpm sentiness check --tier=fast --compact
+```
+
+All gates pass on this commit. Core tests: 125 passing across 22 files. E2E: 13/13.
+`check:release-packages` passes for 13 public packages.
 
 ## Recommended Next Step
 
-Proceed to Phase I: refine `--diff` from file-level filtering to hunk/line filtering. The Phase H
-checks were written to provide line locations where available, which is the prerequisite recorded in
-the previous handoff.
+1. Add a `pnpm-lock.yaml` parser to `@sentiness/check-deps-diff`. Two options: a tiny in-tree
+   subset for the lockfile's well-known shape, or a single dependency on a small YAML library. Then
+   add `yarn.lock` v1 and v2 parsers.
+2. Decide whether dependency/package/repository-level findings should ever be filtered by `--diff`,
+   or always pass through when the related file (lockfile, package.json) is in the changed set.

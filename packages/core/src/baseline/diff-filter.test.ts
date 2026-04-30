@@ -59,6 +59,7 @@ function makeOutcomeWithContext(
   result: CheckResult,
   changedFiles: readonly string[],
   diffOnly: boolean,
+  changedRanges: Map<string, readonly { startLine: number; endLine: number }[]> = new Map(),
 ): RunOutcome {
   return {
     ...makeOutcome(result),
@@ -70,6 +71,7 @@ function makeOutcomeWithContext(
       baseRef: diffOnly ? 'HEAD' : null,
       headRef: 'HEAD',
       changedFiles,
+      changedRanges,
     },
   };
 }
@@ -94,6 +96,7 @@ function makeOutcome(result: CheckResult): RunOutcome {
       baseRef: 'HEAD',
       headRef: 'HEAD',
       changedFiles: ['src/new.ts'],
+      changedRanges: new Map(),
     },
   };
 }
@@ -115,6 +118,69 @@ describe('diff-filter', () => {
     expect(filtered.findings).toEqual([
       { ...newFinding, introducedInDiff: true },
       { ...outsideDiffFinding, introducedInDiff: false },
+    ]);
+  });
+
+  it('marks introducedInDiff only when the line is inside a changed hunk', () => {
+    const insideHunk: Finding = {
+      ...makeFinding('1'.repeat(64), 'src/new.ts'),
+      location: { file: 'src/new.ts', startLine: 12 },
+    };
+    const outsideHunk: Finding = {
+      ...makeFinding('2'.repeat(64), 'src/new.ts'),
+      location: { file: 'src/new.ts', startLine: 80 },
+    };
+    const fileLevelOnly: Finding = {
+      ...makeFinding('3'.repeat(64), 'src/new.ts'),
+      // No startLine — falls back to file-level matching.
+    };
+    const ranges = new Map([
+      [
+        'src/new.ts',
+        [
+          { startLine: 10, endLine: 15 },
+          { startLine: 40, endLine: 42 },
+        ],
+      ],
+    ]);
+
+    const filtered = applyBaseline(
+      [insideHunk, outsideHunk, fileLevelOnly],
+      undefined,
+      ['src/new.ts'],
+      false,
+      ranges,
+    );
+
+    const flagsByFingerprint = new Map(
+      filtered.findings.map((finding) => [finding.fingerprint, finding.introducedInDiff]),
+    );
+    expect(flagsByFingerprint.get(insideHunk.fingerprint)).toBe(true);
+    expect(flagsByFingerprint.get(outsideHunk.fingerprint)).toBe(false);
+    expect(flagsByFingerprint.get(fileLevelOnly.fingerprint)).toBe(true);
+  });
+
+  it('drops findings whose line is outside the changed hunks in diffOnly mode', () => {
+    const insideHunk: Finding = {
+      ...makeFinding('1'.repeat(64), 'src/new.ts'),
+      location: { file: 'src/new.ts', startLine: 11 },
+    };
+    const outsideHunk: Finding = {
+      ...makeFinding('2'.repeat(64), 'src/new.ts'),
+      location: { file: 'src/new.ts', startLine: 200 },
+    };
+    const ranges = new Map([['src/new.ts', [{ startLine: 10, endLine: 15 }]]]);
+
+    const filtered = applyBaseline(
+      [insideHunk, outsideHunk],
+      undefined,
+      ['src/new.ts'],
+      true,
+      ranges,
+    );
+
+    expect(filtered.findings.map((finding) => finding.fingerprint)).toEqual([
+      insideHunk.fingerprint,
     ]);
   });
 
@@ -170,6 +236,7 @@ describe('diff-filter', () => {
         baseRef: null,
         headRef: 'HEAD',
         changedFiles: [],
+        changedRanges: new Map(),
       },
     };
     const baseline = {

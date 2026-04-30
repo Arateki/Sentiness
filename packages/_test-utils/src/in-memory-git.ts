@@ -1,8 +1,14 @@
-import type { GitCommitInfo, GitProvider } from '@sentiness/check-sdk';
+import type {
+  ChangedLineRanges,
+  GitCommitInfo,
+  GitProvider,
+  LineRange,
+} from '@sentiness/check-sdk';
 
 export class InMemoryGitProvider implements GitProvider {
   changed: readonly string[] = [];
   files = new Map<string, string>();
+  ranges = new Map<string, readonly LineRange[]>();
 
   async isRepo(): Promise<boolean> {
     return true;
@@ -14,6 +20,10 @@ export class InMemoryGitProvider implements GitProvider {
 
   async changedFiles(): Promise<readonly string[]> {
     return this.changed;
+  }
+
+  async changedLineRanges(): Promise<ChangedLineRanges> {
+    return this.ranges;
   }
 
   async fileContentAtRef(_cwd: string, ref: string, path: string): Promise<string | null> {

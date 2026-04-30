@@ -1,4 +1,10 @@
-import type { GitCommitInfo, GitProvider, ProcessRunner } from '@sentiness/check-sdk';
+import type {
+  ChangedLineRanges,
+  GitCommitInfo,
+  GitProvider,
+  LineRange,
+  ProcessRunner,
+} from '@sentiness/check-sdk';
 
 export class GitError extends Error {
   constructor(
@@ -19,6 +25,41 @@ async function git(process: ProcessRunner, cwd: string, args: readonly string[])
   return result.stdout.trim();
 }
 
+const HUNK_HEADER = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/;
+
+export function parseChangedLineRanges(diffOutput: string): ChangedLineRanges {
+  const ranges = new Map<string, LineRange[]>();
+  let currentFile: string | undefined;
+
+  for (const rawLine of diffOutput.split('\n')) {
+    if (rawLine.startsWith('+++ ')) {
+      const path = rawLine.slice(4).trim();
+      currentFile = path === '/dev/null' ? undefined : path.replace(/^b\//, '');
+      continue;
+    }
+    if (rawLine.startsWith('--- ') || rawLine.startsWith('diff --git ')) {
+      // Header lines we ignore; '+++' below sets the active file.
+      continue;
+    }
+    const match = HUNK_HEADER.exec(rawLine);
+    if (!match || !currentFile) {
+      continue;
+    }
+    const start = Number.parseInt(match[1] ?? '0', 10);
+    const count = match[2] !== undefined ? Number.parseInt(match[2], 10) : 1;
+    if (count === 0 || !Number.isFinite(start)) {
+      // Pure deletions in the new file have count 0; nothing to mark.
+      continue;
+    }
+    const entry: LineRange = { startLine: start, endLine: start + count - 1 };
+    const list = ranges.get(currentFile) ?? [];
+    list.push(entry);
+    ranges.set(currentFile, list);
+  }
+
+  return ranges;
+}
+
 export function createGitProvider(process: ProcessRunner): GitProvider {
   return {
     async isRepo(cwd) {
@@ -36,6 +77,16 @@ export function createGitProvider(process: ProcessRunner): GitProvider {
         `${baseRef}...HEAD`,
       ]);
       return output.length === 0 ? [] : output.split('\n').filter(Boolean);
+    },
+    async changedLineRanges(cwd, baseRef) {
+      const output = await git(process, cwd, [
+        'diff',
+        '--unified=0',
+        '--no-color',
+        '--diff-filter=ACMRT',
+        `${baseRef}...HEAD`,
+      ]);
+      return parseChangedLineRanges(output);
     },
     async fileContentAtRef(cwd, ref, path) {
       const result = await process.execFile('git', ['show', `${ref}:${path}`], { cwd });

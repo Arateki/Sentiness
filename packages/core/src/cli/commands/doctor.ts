@@ -30,6 +30,7 @@ export async function doctorCommand(_args: ParsedArgs, deps: CommandDeps): Promi
           trigger: null,
           baseRef: null,
           changedFiles: [],
+          changedRanges: new Map(),
           diffOnly: false,
           signal: controller.signal,
           logger: deps.logger,

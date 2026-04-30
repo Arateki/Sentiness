@@ -1,6 +1,6 @@
 # Sentiness implementation handoff
 
-Last updated: 2026-04-29
+Last updated: 2026-04-30
 
 This document is a working handoff for continuing the implementation. The canonical product specification is still `CLAUDE.md`; this file records the practical phase approach, what has already landed, what is partial, and what should happen next.
 
@@ -48,6 +48,19 @@ The implementation should progress in usable slices, not by completing the whole
    - Scope: dependency-cruiser, osv-scanner, lockfile-lint, deps-diff, jscpd, semgrep.
    - Status: **done**; all six packages now expose public workspace packages, config schemas,
      normalization tests, process-runner tests, release allowlists, and workspace wiring.
+
+9. **Phase I - Diff precision and transitive deps-diff**
+   - Goal: tighten `--diff` from changed-file filtering to changed-line filtering and emit transitive
+     dependency findings when a supported lockfile is present.
+   - Scope: `GitProvider.changedLineRanges`, runner-level hunk propagation, hunk-aware
+     `applyBaseline`, `package-lock.json` parser, and transitive findings in `@sentiness/check-deps-diff`.
+   - Status: **done**; `--diff` now compares findings against changed line ranges parsed from
+     `git diff --unified=0`, falling back to file-level matching when a finding has no line. The
+     `deps-diff` check now flips `transitiveDiffAvailable: true` and surfaces `info`-severity
+     `new-transitive-dependency`, `removed-transitive-dependency`, and
+     `major-version-bump-transitive` findings whenever both base and current
+     `package-lock.json`/`npm-shrinkwrap.json` files parse successfully. pnpm and Yarn lockfiles
+     remain skipped pending dedicated parsers.
 
 ## Sprint corretivo (2026-04-28 / 2026-04-29)
 
@@ -376,9 +389,11 @@ The final `sentiness check` report returned `summary.status: "ok"` with no findi
 
 ### Diff gaps
 
-- `--diff` currently uses Git changed files and marks a finding as introduced when its file is changed.
-- It does not yet compare exact diff hunks or prove that a specific finding was introduced by the current patch.
-- This is usable for the first slice, but it is not the final precision expected by the spec.
+- `--diff` now uses changed line ranges parsed from `git diff --unified=0`. A finding with a precise
+  `location.startLine` is treated as introduced only when that line falls inside a hunk; findings
+  without a line (for example dependency findings) keep falling back to file-level matching.
+- This still does not prove a particular finding was *caused* by the current patch (a hunk may
+  surface a pre-existing latent issue), but it is the spec's intended precision for `--diff`.
 
 ### Report/schema gaps
 
@@ -388,8 +403,10 @@ The final `sentiness check` report returned `summary.status: "ok"` with no findi
 
 ### Check package gaps
 
-- `deps-diff` currently reports direct dependency changes only. It sets
-  `metrics.transitiveDiffAvailable: false` until lockfile-specific transitive parsers are added.
+- `deps-diff` now parses `package-lock.json` / `npm-shrinkwrap.json` and surfaces transitive
+  changes; `metrics.transitiveDiffAvailable` is `true` whenever both base and current lockfiles
+  parse. `pnpm-lock.yaml` and `yarn.lock` are still unsupported and keep
+  `transitiveDiffAvailable: false`.
 - `lockfile-lint` skips pnpm-only projects because lockfile-lint does not support `pnpm-lock.yaml`.
 - External-tool checks rely on the target project having the corresponding CLI installed; `doctor`
   reports missing tools and install guidance.
@@ -406,13 +423,16 @@ The final `sentiness check` report returned `summary.status: "ok"` with no findi
 
 ## Recommended next steps
 
-1. **Next product decision**
-   - Tighten `--diff` precision from changed-file filtering to hunk/line-range filtering now that
-     Phase H checks emit `location.startLine` where their tools provide it.
+1. **pnpm and Yarn lockfile parsers**
+   - Extend `@sentiness/check-deps-diff` with parsers for `pnpm-lock.yaml` (YAML, requires a
+     dependency or a careful in-tree subset) and `yarn.lock` v1/v2. Goal: `transitiveDiffAvailable`
+     is `true` for any supported lockfile, not only npm.
 
-2. **Transitive dependency diff**
-   - Add lockfile parsers to `deps-diff` for npm, pnpm, and Yarn lockfiles, then flip
-     `transitiveDiffAvailable` when a parser is active.
+2. **Hunk-level diff for adapter-defined locations**
+   - Some checks emit findings without a `location.startLine` (notably dependency, package, and
+     repository-level findings). Those still fall back to file-level diff matching. Decide whether
+     specific check categories should be exempt from `--diff` filtering altogether or always
+     attached to the changed file set.
 
 ## How to resume safely
 

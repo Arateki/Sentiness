@@ -10,6 +10,7 @@ function context(process: FakeProcessRunner, fs: InMemoryFileSystem): CheckConte
     trigger: null,
     baseRef: null,
     changedFiles: [],
+    changedRanges: new Map(),
     diffOnly: false,
     signal: new AbortController().signal,
     logger: new SilentLogger(),

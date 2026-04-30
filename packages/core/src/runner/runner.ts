@@ -4,6 +4,7 @@ import {
   asCheckId,
   asRuleId,
   type Category,
+  type ChangedLineRanges,
   type Check,
   type CheckId,
   type CheckResult,
@@ -50,6 +51,7 @@ export type RunContext = {
   readonly baseRef: string | null;
   readonly headRef: string | null;
   readonly changedFiles: readonly string[];
+  readonly changedRanges: ChangedLineRanges;
 };
 
 export type RunOutcome = {
@@ -152,6 +154,7 @@ async function runOneCheck(
       trigger: context.trigger,
       baseRef: context.baseRef,
       changedFiles: context.changedFiles,
+      changedRanges: context.changedRanges,
       diffOnly: options.diffOnly,
       signal,
       logger: input.logger,
@@ -212,6 +215,9 @@ export async function runChecks(input: RunInput, options: RunOptions): Promise<R
   const tier = resolveTier(input.config, options);
   const baseRef = options.baseRef ?? 'HEAD';
   const changedFiles = options.diffOnly ? await input.git.changedFiles(input.cwd, baseRef) : [];
+  const changedRanges: ChangedLineRanges = options.diffOnly
+    ? await input.git.changedLineRanges(input.cwd, baseRef)
+    : new Map();
   const mode: RunMode = options.diffOnly ? 'diff' : options.trend ? 'trend' : 'full';
   const context: RunContext = {
     cwd: input.cwd,
@@ -221,6 +227,7 @@ export async function runChecks(input: RunInput, options: RunOptions): Promise<R
     baseRef: options.diffOnly ? baseRef : null,
     headRef: 'HEAD',
     changedFiles,
+    changedRanges,
   };
   const loadFailures = input.registry.loadFailures();
   const results = new Map<CheckId, CheckResult>(syntheticLoadFailureResults(loadFailures));

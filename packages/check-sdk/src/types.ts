@@ -117,10 +117,18 @@ export type GitCommitInfo = {
   readonly author: string;
 };
 
+export type LineRange = {
+  readonly startLine: number;
+  readonly endLine: number;
+};
+
+export type ChangedLineRanges = ReadonlyMap<string, readonly LineRange[]>;
+
 export type GitProvider = {
   isRepo(cwd: string): Promise<boolean>;
   currentBranch(cwd: string): Promise<string>;
   changedFiles(cwd: string, baseRef: string): Promise<readonly string[]>;
+  changedLineRanges(cwd: string, baseRef: string): Promise<ChangedLineRanges>;
   fileContentAtRef(cwd: string, ref: string, path: string): Promise<string | null>;
   mergeBase(cwd: string, refA: string, refB: string): Promise<string>;
   showCommit(cwd: string, ref: string): Promise<GitCommitInfo>;
@@ -154,6 +162,7 @@ export type CheckContext<TConfig = Record<string, unknown>> = {
   readonly trigger: string | null;
   readonly baseRef: string | null;
   readonly changedFiles: readonly string[];
+  readonly changedRanges: ChangedLineRanges;
   readonly diffOnly: boolean;
   readonly signal: AbortSignal;
   readonly logger: Logger;
