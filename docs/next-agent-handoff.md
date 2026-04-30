@@ -1,51 +1,29 @@
 # Next Agent Handoff
 
-Date: 2026-04-29
+Date: 2026-04-30
 
 ## Current Status
 
-- Working tree was clean when this handoff was written.
-- Latest commit observed: `98073f8 feat: update implementation to derive SENTINESS_VERSION from package.json, enhance validation tests, and add public CLI examples`.
-- Phase G is complete in `docs/progress.md`: E2E, public docs, generated report schema, CI, release-package checks, and public CLI example validation are in place.
-- Phase H is not started. Missing checks are dependency-cruiser, osv-scanner, lockfile-lint, deps-diff, jscpd, and semgrep.
+- Phase H is implemented.
+- New check packages: dependency-cruiser, deps-diff, lockfile-lint, osv-scanner, jscpd, and semgrep.
+- The SDK `CheckContext` now exposes `git?: GitProvider`; the runner and doctor pass the provider so
+  `deps-diff` can compare current `package.json` against a Git base ref.
+- Root package wiring and `pnpm-lock.yaml` include the six new workspace packages.
+- Release-package checks now include all public check packages.
 
-Recent validation passed before this handoff:
+## Phase H Notes
 
-```sh
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm test:e2e
-pnpm check:release-packages
-pnpm sentiness check --tier=fast --compact
-git diff --check
-```
+- `deps-diff` reports direct dependency additions, removals, and major-version bumps. It does not
+  parse transitive lockfile changes yet and reports `transitiveDiffAvailable: false`.
+- `dependency-cruiser`, `jscpd`, and `semgrep` emit `location.startLine` when their JSON reports
+  include line data.
+- `osv-scanner` and `lockfile-lint` are package/lockfile-level checks, so their findings point at
+  lockfiles with package metadata when available.
+- The init wizard knows all Phase H checks, but the heavier checks default to disabled in
+  non-interactive init unless explicitly selected through `--checks=...`.
 
-## Diff vs Phase H Decision
+## Recommended Next Step
 
-The `--diff` discussion was about improving how AI agents consume Sentiness output.
-
-Current behavior:
-
-- `sentiness check --diff --base=<ref>` runs at repo scope, computes changed files, and keeps findings whose `location.file` is in that changed-file set.
-- This is file-level filtering. If a file changed, an old finding elsewhere in the same file may still appear as introduced in diff.
-- This is not baseline-only. It helps both normal checks and baseline-filtered checks by reducing report noise for agents and PR review.
-
-Possible future improvement:
-
-- Parse Git hunks and keep only findings whose `location.startLine` overlaps changed lines.
-- This would make `--diff` mean "findings on changed lines", not just "findings in changed files".
-- It improves agent focus, but it is not required before adding more checks.
-
-Recommended order:
-
-- Proceed with Phase H first.
-- While implementing Phase H checks, make every finding include `location.file` and include `location.startLine` whenever the tool can provide it.
-- Refine `--diff` after Phase H, using those line locations to avoid broad file-level noise.
-
-Reasoning:
-
-- Phase H increases coverage and usefulness now.
-- Current `--diff` is good enough as a first slice and is documented as file-level.
-- Adding checks first does not compromise the system; precise line-level diff can be layered on later with less rework if new checks already emit good locations.
-
+Proceed to Phase I: refine `--diff` from file-level filtering to hunk/line filtering. The Phase H
+checks were written to provide line locations where available, which is the prerequisite recorded in
+the previous handoff.

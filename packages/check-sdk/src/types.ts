@@ -158,6 +158,7 @@ export type CheckContext<TConfig = Record<string, unknown>> = {
   readonly signal: AbortSignal;
   readonly logger: Logger;
   readonly fs: FileSystem;
+  readonly git?: GitProvider;
   readonly process: ProcessRunner;
   readonly checkConfig: TConfig;
 };

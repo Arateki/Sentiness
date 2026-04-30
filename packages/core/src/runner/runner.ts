@@ -156,6 +156,7 @@ async function runOneCheck(
       signal,
       logger: input.logger,
       fs: input.fs,
+      git: input.git,
       process: input.process,
       checkConfig: parsedCheckConfig,
     };

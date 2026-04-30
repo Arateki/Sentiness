@@ -8,11 +8,11 @@ report that an AI agent or CI job can consume without parsing tool-specific outp
 - Node.js `>=20.10`
 - pnpm for this workspace
 - Git in the target project if you want baseline commit metadata, diff mode, or hooks
-- The external tools for enabled checks, for example Biome, Knip, or Stryker
+- The external tools for enabled checks, for example Biome, Knip, Stryker, dependency-cruiser,
+  lockfile-lint, OSV Scanner, jscpd, or Semgrep
 
-Release packaging is still pending in this repository. Until that work lands, use the local checkout
-commands for development and only use bare `sentiness` commands in projects where the binary is
-already available.
+Use the local checkout commands for development and bare `sentiness` commands in projects where the
+binary is already available.
 
 ## Run The Local Checkout
 
@@ -23,9 +23,10 @@ pnpm sentiness doctor
 pnpm sentiness check --tier=fast --compact
 ```
 
-The repository config enables Biome, Knip, Coverage, and Stryker. If an external binary is missing,
-`doctor` exits non-zero and reports the missing check with an install suggestion. That is expected
-when a local machine has not installed every optional tool.
+The repository config enables Biome, Knip, Coverage, and Stryker. Additional Phase H checks are
+available for target projects and can be enabled by ID. If an external binary is missing, `doctor`
+exits non-zero and reports the missing check with an install suggestion. That is expected when a
+local machine has not installed every optional tool.
 
 ## Initialize A Target Project
 
@@ -75,6 +76,19 @@ is the committed adoption contract for the project.
 
 Sentiness resolves enabled check IDs by loading packages named `@sentiness/check-<id>` from the
 target project. For the config above, it loads `@sentiness/check-biome`.
+
+Implemented check IDs in this checkout:
+
+- `biome`
+- `knip`
+- `coverage`
+- `stryker`
+- `deps-diff`
+- `dependency-cruiser`
+- `lockfile-lint`
+- `osv-scanner`
+- `jscpd`
+- `semgrep`
 
 ## Daily Workflow
 

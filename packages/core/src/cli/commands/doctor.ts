@@ -3,13 +3,17 @@ import { CheckRegistry } from '../../registry/registry.js';
 import type { CommandDeps, ParsedArgs } from './types.js';
 
 function installSuggestion(checkId: string): string | undefined {
-  const packages: Readonly<Record<string, string>> = {
-    biome: '@biomejs/biome',
-    knip: 'knip',
-    stryker: '@stryker-mutator/core',
+  const suggestions: Readonly<Record<string, string>> = {
+    biome: 'pnpm add -D @biomejs/biome',
+    'dependency-cruiser': 'pnpm add -D dependency-cruiser',
+    jscpd: 'pnpm add -D jscpd',
+    knip: 'pnpm add -D knip',
+    'lockfile-lint': 'pnpm add -D lockfile-lint',
+    'osv-scanner': 'install osv-scanner from https://google.github.io/osv-scanner/installation/',
+    semgrep: 'install semgrep from https://semgrep.dev/docs/getting-started/cli/',
+    stryker: 'pnpm add -D @stryker-mutator/core',
   };
-  const packageName = packages[checkId];
-  return packageName ? `pnpm add -D ${packageName}` : undefined;
+  return suggestions[checkId];
 }
 
 export async function doctorCommand(_args: ParsedArgs, deps: CommandDeps): Promise<number> {
@@ -30,6 +34,7 @@ export async function doctorCommand(_args: ParsedArgs, deps: CommandDeps): Promi
           signal: controller.signal,
           logger: deps.logger,
           fs: deps.fs,
+          git: deps.git,
           process: deps.processRunner,
           checkConfig,
         });

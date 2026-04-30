@@ -51,7 +51,18 @@ describe('initCommand', () => {
     const configExists = await fs.exists('/project/sentiness.config.json');
     expect(configExists).toBe(true);
     const config = JSON.parse(await fs.readFile('/project/sentiness.config.json'));
-    expect(Object.keys(config.checks)).toEqual(['biome', 'knip', 'coverage', 'stryker']);
+    expect(Object.keys(config.checks)).toEqual([
+      'biome',
+      'knip',
+      'coverage',
+      'stryker',
+      'deps-diff',
+      'dependency-cruiser',
+      'lockfile-lint',
+      'jscpd',
+      'osv-scanner',
+      'semgrep',
+    ]);
 
     const gitignore = await fs.readFile('/project/.gitignore');
     expect(gitignore).toContain('.sentiness/jobs/');

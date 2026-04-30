@@ -43,10 +43,11 @@ The implementation should progress in usable slices, not by completing the whole
    - Scope: E2E tests against `examples/demo-project`, public README/docs, complete JSON schema artifact, CI examples, and release packaging.
    - Status: **done**; T7.1 E2E full-flow tests now cover the built CLI against `examples/demo-project`, `doctor`, real Biome findings, background job status/result/pending feedback, baseline init suppression, baseline `accept`/`prune`, metric baseline `update`, direct hook installation/idempotency/error handling, non-interactive `init`, `install-skill --agent=all`, and the committed report schema artifact. T7.2 public README/docs are in place, CI and release-package gates are wired, and public CLI examples are validated against the registered command surface.
 
-8. **Phase H - Additional check packages (Deferred)**
+8. **Phase H - Additional check packages**
    - Goal: add the remaining heavier check packages.
    - Scope: dependency-cruiser, osv-scanner, lockfile-lint, deps-diff, jscpd, semgrep.
-   - Status: **not started**.
+   - Status: **done**; all six packages now expose public workspace packages, config schemas,
+     normalization tests, process-runner tests, release allowlists, and workspace wiring.
 
 ## Sprint corretivo (2026-04-28 / 2026-04-29)
 
@@ -283,6 +284,12 @@ All implemented check packages follow the same structure: `detect`, `run`, `norm
 - **`@sentiness/check-knip`** — Unused exports and dead-dependency detection; JSON normalization.
 - **`@sentiness/check-coverage`** — Istanbul `coverage-final.json` reader; per-file and diff coverage thresholds; skips gracefully when report is absent.
 - **`@sentiness/check-stryker`** — StrykerJS mutation score; surviving-mutant findings; reads Stryker's JSON report.
+- **`@sentiness/check-deps-diff`** — Compares direct `package.json` dependencies against a Git base ref and reports added, removed, and major-version changes.
+- **`@sentiness/check-dependency-cruiser`** — Runs dependency-cruiser JSON output and reports architecture rule violations against the importing file.
+- **`@sentiness/check-lockfile-lint`** — Runs lockfile-lint for npm/Yarn lockfiles and reports lockfile policy violations.
+- **`@sentiness/check-osv-scanner`** — Runs OSV Scanner against supported JavaScript lockfiles and reports vulnerable packages with upgrade suggestions.
+- **`@sentiness/check-jscpd`** — Runs jscpd JSON reporting and surfaces duplicated code blocks with line locations.
+- **`@sentiness/check-semgrep`** — Runs Semgrep JSON reporting with configurable rulesets and maps matches to security findings.
 
 ### Example project
 
@@ -325,9 +332,25 @@ git diff --check
 
 `pnpm test:e2e` now passes with 13 tests.
 
-After CI/release packaging, `pnpm check:release-packages` passes for 7 public packages.
+After Phase G CI/release packaging, `pnpm check:release-packages` passed for 7 public packages.
 
 `pnpm test:e2e` includes a full `pnpm build` before running the CLI E2E suite.
+
+After Phase H, the following commands passed:
+
+```sh
+pnpm install --ignore-scripts --offline
+pnpm typecheck
+pnpm test
+pnpm lint
+pnpm build
+pnpm check:release-packages
+pnpm test:e2e
+pnpm sentiness check --tier=fast --compact
+git diff --check
+```
+
+`pnpm check:release-packages` now validates 13 public packages.
 
 Additional CLI smoke validation:
 
@@ -365,14 +388,11 @@ The final `sentiness check` report returned `summary.status: "ok"` with no findi
 
 ### Check package gaps
 
-Missing check packages (Phase H):
-
-- `@sentiness/check-dependency-cruiser`
-- `@sentiness/check-osv-scanner`
-- `@sentiness/check-lockfile-lint`
-- `@sentiness/check-deps-diff`
-- `@sentiness/check-jscpd`
-- `@sentiness/check-semgrep`
+- `deps-diff` currently reports direct dependency changes only. It sets
+  `metrics.transitiveDiffAvailable: false` until lockfile-specific transitive parsers are added.
+- `lockfile-lint` skips pnpm-only projects because lockfile-lint does not support `pnpm-lock.yaml`.
+- External-tool checks rely on the target project having the corresponding CLI installed; `doctor`
+  reports missing tools and install guidance.
 
 ### Adapter gaps
 
@@ -387,10 +407,12 @@ Missing check packages (Phase H):
 ## Recommended next steps
 
 1. **Next product decision**
-   - Decide whether to start Phase H check packages or tighten `--diff` precision first.
+   - Tighten `--diff` precision from changed-file filtering to hunk/line-range filtering now that
+     Phase H checks emit `location.startLine` where their tools provide it.
 
-2. **Deferred check packages**
-   - Implement dependency-cruiser, osv-scanner, lockfile-lint, deps-diff, jscpd, and semgrep when the core agent loop is covered by E2E.
+2. **Transitive dependency diff**
+   - Add lockfile parsers to `deps-diff` for npm, pnpm, and Yarn lockfiles, then flip
+     `transitiveDiffAvailable` when a parser is active.
 
 ## How to resume safely
 

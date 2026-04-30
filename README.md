@@ -5,9 +5,9 @@ for AI coding agents and CI. It is baseline-aware, tier-based, and designed so a
 question before declaring work complete: what is still wrong in this codebase?
 
 Current repository status: the core CLI, baseline workflows, background jobs, agent instruction
-adapters, and the Biome, Knip, Coverage, and Stryker checks are implemented and tested locally.
-Release packaging is still a follow-up item, so commands below distinguish between this checkout
-and a target project using an installed `sentiness` binary.
+adapters, and the Biome, Knip, Coverage, Stryker, dependency-cruiser, deps-diff, lockfile-lint,
+OSV Scanner, jscpd, and Semgrep checks are implemented and tested locally. Commands below
+distinguish between this checkout and a target project using an installed `sentiness` binary.
 
 ## Quick Start In This Checkout
 
@@ -18,9 +18,10 @@ pnpm sentiness doctor
 pnpm sentiness check --tier=fast --compact
 ```
 
-`doctor` may return a non-zero exit code if optional external tools such as `knip` or Stryker are
-not installed in this local checkout. That means Sentiness is running and reporting the missing
-tooling; use the JSON/text output to decide which package to install for the checks you enabled.
+`doctor` may return a non-zero exit code if optional external tools such as `knip`, Stryker,
+dependency-cruiser, lockfile-lint, OSV Scanner, jscpd, or Semgrep are not installed in this local
+checkout. That means Sentiness is running and reporting the missing tooling; use the JSON/text output
+to decide which package to install for the checks you enabled.
 
 ## Add Sentiness To A Project
 
@@ -64,12 +65,18 @@ Sentiness loads `sentiness.config.js` first, then `sentiness.config.json`.
   "checks": {
     "biome": { "enabled": true, "tier": "fast" },
     "knip": { "enabled": true, "tier": "standard" },
+    "deps-diff": { "enabled": true, "tier": "fast" },
+    "dependency-cruiser": { "enabled": true, "tier": "standard" },
+    "lockfile-lint": { "enabled": true, "tier": "standard" },
+    "jscpd": { "enabled": true, "tier": "standard" },
     "coverage": {
       "enabled": true,
       "tier": "slow",
       "thresholds": { "lineCoverage": 85 }
     },
-    "stryker": { "enabled": true, "tier": "slow" }
+    "stryker": { "enabled": true, "tier": "slow" },
+    "osv-scanner": { "enabled": true, "tier": "slow" },
+    "semgrep": { "enabled": true, "tier": "slow" }
   },
   "baseline": { "path": ".sentiness/baseline.json" },
   "pending": { "path": ".sentiness/pending-feedback.json" },

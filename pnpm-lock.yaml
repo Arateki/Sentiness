@@ -17,9 +17,27 @@ importers:
       '@sentiness/check-coverage':
         specifier: workspace:*
         version: link:packages/checks/coverage
+      '@sentiness/check-dependency-cruiser':
+        specifier: workspace:*
+        version: link:packages/checks/dependency-cruiser
+      '@sentiness/check-deps-diff':
+        specifier: workspace:*
+        version: link:packages/checks/deps-diff
+      '@sentiness/check-jscpd':
+        specifier: workspace:*
+        version: link:packages/checks/jscpd
       '@sentiness/check-knip':
         specifier: workspace:*
         version: link:packages/checks/knip
+      '@sentiness/check-lockfile-lint':
+        specifier: workspace:*
+        version: link:packages/checks/lockfile-lint
+      '@sentiness/check-osv-scanner':
+        specifier: workspace:*
+        version: link:packages/checks/osv-scanner
+      '@sentiness/check-semgrep':
+        specifier: workspace:*
+        version: link:packages/checks/semgrep
       '@sentiness/check-stryker':
         specifier: workspace:*
         version: link:packages/checks/stryker
@@ -118,6 +136,72 @@ importers:
         specifier: latest
         version: 4.1.5(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(vite@8.0.10(@types/node@25.6.0))
 
+  packages/checks/dependency-cruiser:
+    dependencies:
+      '@sentiness/check-sdk':
+        specifier: workspace:*
+        version: link:../../check-sdk
+      zod:
+        specifier: latest
+        version: 4.3.6
+    devDependencies:
+      '@sentiness/_test-utils':
+        specifier: workspace:*
+        version: link:../../_test-utils
+      fast-check:
+        specifier: latest
+        version: 4.7.0
+      typescript:
+        specifier: latest
+        version: 6.0.3
+      vitest:
+        specifier: latest
+        version: 4.1.5(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(vite@8.0.10(@types/node@25.6.0))
+
+  packages/checks/deps-diff:
+    dependencies:
+      '@sentiness/check-sdk':
+        specifier: workspace:*
+        version: link:../../check-sdk
+      zod:
+        specifier: latest
+        version: 4.3.6
+    devDependencies:
+      '@sentiness/_test-utils':
+        specifier: workspace:*
+        version: link:../../_test-utils
+      fast-check:
+        specifier: latest
+        version: 4.7.0
+      typescript:
+        specifier: latest
+        version: 6.0.3
+      vitest:
+        specifier: latest
+        version: 4.1.5(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(vite@8.0.10(@types/node@25.6.0))
+
+  packages/checks/jscpd:
+    dependencies:
+      '@sentiness/check-sdk':
+        specifier: workspace:*
+        version: link:../../check-sdk
+      zod:
+        specifier: latest
+        version: 4.3.6
+    devDependencies:
+      '@sentiness/_test-utils':
+        specifier: workspace:*
+        version: link:../../_test-utils
+      fast-check:
+        specifier: latest
+        version: 4.7.0
+      typescript:
+        specifier: latest
+        version: 6.0.3
+      vitest:
+        specifier: latest
+        version: 4.1.5(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(vite@8.0.10(@types/node@25.6.0))
+
   packages/checks/knip:
     dependencies:
       '@sentiness/check-sdk':
@@ -130,6 +214,72 @@ importers:
       '@sentiness/_test-utils':
         specifier: workspace:*
         version: link:../../_test-utils
+      typescript:
+        specifier: latest
+        version: 6.0.3
+      vitest:
+        specifier: latest
+        version: 4.1.5(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(vite@8.0.10(@types/node@25.6.0))
+
+  packages/checks/lockfile-lint:
+    dependencies:
+      '@sentiness/check-sdk':
+        specifier: workspace:*
+        version: link:../../check-sdk
+      zod:
+        specifier: latest
+        version: 4.3.6
+    devDependencies:
+      '@sentiness/_test-utils':
+        specifier: workspace:*
+        version: link:../../_test-utils
+      fast-check:
+        specifier: latest
+        version: 4.7.0
+      typescript:
+        specifier: latest
+        version: 6.0.3
+      vitest:
+        specifier: latest
+        version: 4.1.5(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(vite@8.0.10(@types/node@25.6.0))
+
+  packages/checks/osv-scanner:
+    dependencies:
+      '@sentiness/check-sdk':
+        specifier: workspace:*
+        version: link:../../check-sdk
+      zod:
+        specifier: latest
+        version: 4.3.6
+    devDependencies:
+      '@sentiness/_test-utils':
+        specifier: workspace:*
+        version: link:../../_test-utils
+      fast-check:
+        specifier: latest
+        version: 4.7.0
+      typescript:
+        specifier: latest
+        version: 6.0.3
+      vitest:
+        specifier: latest
+        version: 4.1.5(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(vite@8.0.10(@types/node@25.6.0))
+
+  packages/checks/semgrep:
+    dependencies:
+      '@sentiness/check-sdk':
+        specifier: workspace:*
+        version: link:../../check-sdk
+      zod:
+        specifier: latest
+        version: 4.3.6
+    devDependencies:
+      '@sentiness/_test-utils':
+        specifier: workspace:*
+        version: link:../../_test-utils
+      fast-check:
+        specifier: latest
+        version: 4.7.0
       typescript:
         specifier: latest
         version: 6.0.3

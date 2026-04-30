@@ -32,7 +32,31 @@ const publicPackages = [
     requiredFiles: ['dist/index.js', 'dist/index.d.ts', 'README.md'],
   },
   {
+    dir: 'packages/checks/dependency-cruiser',
+    requiredFiles: ['dist/index.js', 'dist/index.d.ts', 'README.md'],
+  },
+  {
+    dir: 'packages/checks/deps-diff',
+    requiredFiles: ['dist/index.js', 'dist/index.d.ts', 'README.md'],
+  },
+  {
+    dir: 'packages/checks/jscpd',
+    requiredFiles: ['dist/index.js', 'dist/index.d.ts', 'README.md'],
+  },
+  {
     dir: 'packages/checks/knip',
+    requiredFiles: ['dist/index.js', 'dist/index.d.ts', 'README.md'],
+  },
+  {
+    dir: 'packages/checks/lockfile-lint',
+    requiredFiles: ['dist/index.js', 'dist/index.d.ts', 'README.md'],
+  },
+  {
+    dir: 'packages/checks/osv-scanner',
+    requiredFiles: ['dist/index.js', 'dist/index.d.ts', 'README.md'],
+  },
+  {
+    dir: 'packages/checks/semgrep',
     requiredFiles: ['dist/index.js', 'dist/index.d.ts', 'README.md'],
   },
   {

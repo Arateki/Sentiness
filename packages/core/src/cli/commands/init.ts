@@ -125,17 +125,73 @@ export async function initCommand(args: ParsedArgs, deps: CommandDeps): Promise<
     deps.logger.info(`Detected Test Runner: ${hasVitest ? 'vitest' : hasJest ? 'jest' : 'none'}`);
 
     const knownChecks = [
-      { id: 'biome', label: 'Biome check (fast lint & format)', tier: 'fast' },
-      { id: 'knip', label: 'Knip check (unused code/dependencies)', tier: 'standard' },
-      { id: 'coverage', label: 'Coverage check (Istanbul coverage report)', tier: 'slow' },
-      { id: 'stryker', label: 'Stryker check (mutation testing)', tier: 'slow' },
+      {
+        id: 'biome',
+        label: 'Biome check (fast lint & format)',
+        tier: 'fast',
+        defaultEnabled: true,
+      },
+      {
+        id: 'knip',
+        label: 'Knip check (unused code/dependencies)',
+        tier: 'standard',
+        defaultEnabled: true,
+      },
+      {
+        id: 'coverage',
+        label: 'Coverage check (Istanbul coverage report)',
+        tier: 'slow',
+        defaultEnabled: true,
+      },
+      {
+        id: 'stryker',
+        label: 'Stryker check (mutation testing)',
+        tier: 'slow',
+        defaultEnabled: true,
+      },
+      {
+        id: 'deps-diff',
+        label: 'Dependency diff check (package.json changes)',
+        tier: 'fast',
+        defaultEnabled: false,
+      },
+      {
+        id: 'dependency-cruiser',
+        label: 'Dependency Cruiser check (architecture rules)',
+        tier: 'standard',
+        defaultEnabled: false,
+      },
+      {
+        id: 'lockfile-lint',
+        label: 'Lockfile Lint check (lockfile security policy)',
+        tier: 'standard',
+        defaultEnabled: false,
+      },
+      {
+        id: 'jscpd',
+        label: 'jscpd check (code duplication)',
+        tier: 'standard',
+        defaultEnabled: false,
+      },
+      {
+        id: 'osv-scanner',
+        label: 'OSV Scanner check (dependency vulnerabilities)',
+        tier: 'slow',
+        defaultEnabled: false,
+      },
+      {
+        id: 'semgrep',
+        label: 'Semgrep check (security rules)',
+        tier: 'slow',
+        defaultEnabled: false,
+      },
     ] as const;
 
     for (const check of knownChecks) {
       const enabled = await confirm(
         `Enable ${check.label}?`,
-        true,
-        selectedChecks ? selectedChecks.has(check.id) : true,
+        check.defaultEnabled,
+        selectedChecks ? selectedChecks.has(check.id) : check.defaultEnabled,
       );
       if (enabled) {
         const checkConfig: Record<string, unknown> = { enabled: true, tier: check.tier };
