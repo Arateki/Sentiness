@@ -1,0 +1,29 @@
+{
+  "name": "@sentiness/check-playwright",
+  "version": "0.1.0",
+  "type": "module",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "node ../../../scripts/clean-dist.mjs && tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --config ../../../vitest.config.base.ts src"
+  },
+  "dependencies": {
+    "@sentiness/check-sdk": "workspace:*",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@sentiness/_test-utils": "workspace:*",
+    "typescript": "latest",
+    "vitest": "latest"
+  }
+}

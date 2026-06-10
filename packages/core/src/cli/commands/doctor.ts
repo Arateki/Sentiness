@@ -12,6 +12,7 @@ function installSuggestion(checkId: string): string | undefined {
     knip: 'pnpm add -D knip',
     'lockfile-lint': 'pnpm add -D lockfile-lint',
     'osv-scanner': 'install osv-scanner from https://google.github.io/osv-scanner/installation/',
+    playwright: 'pnpm add -D @playwright/test',
     semgrep: 'install semgrep from https://semgrep.dev/docs/getting-started/cli/',
     stryker: 'pnpm add -D @stryker-mutator/core',
   };

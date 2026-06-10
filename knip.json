@@ -11,6 +11,7 @@
         "@sentiness/check-knip",
         "@sentiness/check-lockfile-lint",
         "@sentiness/check-osv-scanner",
+        "@sentiness/check-playwright",
         "@sentiness/check-semgrep",
         "@sentiness/check-stryker",
         "@stryker-mutator/command-runner",

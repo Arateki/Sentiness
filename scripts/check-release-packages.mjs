@@ -56,6 +56,10 @@ const publicPackages = [
     requiredFiles: ['dist/index.js', 'dist/index.d.ts', 'README.md'],
   },
   {
+    dir: 'packages/checks/playwright',
+    requiredFiles: ['dist/index.js', 'dist/index.d.ts', 'README.md'],
+  },
+  {
     dir: 'packages/checks/semgrep',
     requiredFiles: ['dist/index.js', 'dist/index.d.ts', 'README.md'],
   },
