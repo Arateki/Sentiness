@@ -1124,6 +1124,7 @@ export interface MetricRegression {
 - A finding is "new" if its `fingerprint` is not in baseline's suppressed set.
 - A finding is `introducedInDiff: true` if its `location.file` is in `changedFiles`.
 - In `diffOnly: true` mode, drop findings outside `changedFiles` entirely. In trend mode, keep them but mark `introducedInDiff: false`.
+- **Category exemption:** checks with category `security` or `platform` are never subject to the diffOnly drop (their findings are kept with `introducedInDiff: false` when outside the diff). Security advisories appear over time without the code changing, and platform results signal Sentiness's own failures; the baseline — not the diff filter — is the mechanism for accepting known findings in these categories. The exemption lives in `applyBaselineToOutcome` (which knows each check's category via `RunOutcome.checkMetadata`); `applyBaseline` itself stays category-agnostic.
 - `compareMetrics` compares numeric metrics only and returns regressions only. Non-numeric `CheckMetrics` values are metadata and are ignored by metric baselines.
 - `BaselineApplication` is structurally compatible with T1.4 `ReportInput`; it is what the CLI passes to `buildReport`.
 

@@ -42,8 +42,15 @@ Use diff mode when an agent or CI job only wants findings in changed files:
 sentiness check --tier=fast --diff --base=main
 ```
 
-Current diff precision is file-level. A finding is considered introduced when it is in a changed
-file and is not suppressed by the baseline. Exact hunk-level attribution is still a follow-up item.
+Diff precision is hunk-level when possible: a finding with a precise line is considered introduced
+only when that line falls inside a changed hunk (parsed from `git diff --unified=0`). Findings
+without a line — dependency, package, and repository-level findings — fall back to file-level
+matching. In both cases the finding must also not be suppressed by the baseline.
+
+Two check categories are exempt from the diff-mode drop: `security` and `platform`. Their findings
+are always reported (marked `introducedInDiff: false` when outside the diff), because new security
+advisories appear without the code changing and platform results signal Sentiness's own failures.
+To accept a known vulnerability, add it to the baseline — the diff filter will not hide it.
 
 ## Accepting A Finding
 

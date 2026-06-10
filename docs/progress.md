@@ -420,6 +420,12 @@ The final `sentiness check` report returned `summary.status: "ok"` with no findi
 - `--diff` now uses changed line ranges parsed from `git diff --unified=0`. A finding with a precise
   `location.startLine` is treated as introduced only when that line falls inside a hunk; findings
   without a line (for example dependency findings) keep falling back to file-level matching.
+- Policy decided 2026-06-10: checks with category `security` or `platform` are exempt from the
+  diff-mode drop. Their findings are always reported (with `introducedInDiff: false` when outside
+  the diff), because new advisories appear without the code changing and platform results signal
+  Sentiness's own failures. The baseline, not the diff filter, accepts known findings in these
+  categories. Implemented in `applyBaselineToOutcome` via `RunOutcome.checkMetadata`;
+  `applyBaseline` stays category-agnostic.
 - This still does not prove a particular finding was *caused* by the current patch (a hunk may
   surface a pre-existing latent issue), but it is the spec's intended precision for `--diff`.
 
@@ -480,17 +486,11 @@ a built-CLI smoke test against a file quoting the markers inline.
 
 ## Recommended next steps
 
-1. **Hunk-level diff for adapter-defined locations**
-   - Some checks emit findings without a `location.startLine` (notably dependency, package, and
-     repository-level findings). Those still fall back to file-level diff matching. Decide whether
-     specific check categories should be exempt from `--diff` filtering altogether or always
-     attached to the changed file set.
-
-2. **`configFiles` + `defaultConfig` for more checks** (carried over from Phase J)
+1. **`configFiles` + `defaultConfig` for more checks** (carried over from Phase J)
    - Extend the pattern to `dependency-cruiser`, `jscpd`, and `semgrep`; cover `init-config` and
      `doctor` config validation with E2E tests against the demo project.
 
-3. **Playwright visual-feedback check (idea raised 2026-06-10)**
+2. **Playwright visual-feedback check (idea raised 2026-06-10)**
    - Proposed: a `@sentiness/check-playwright` (slow tier) that detects Playwright, runs the
      target project's E2E suite, and surfaces failed tests plus the paths of generated
      screenshots/traces as findings and metrics, so multimodal agents can inspect UI state with
@@ -498,7 +498,7 @@ a built-CLI smoke test against a file quoting the markers inline.
      reported screenshot paths. Not designed yet — needs a spec for artifact paths in the report
      contract, report-size discipline, and `examples/demo-project` coverage.
 
-4. **Resolve project-local tool binaries in `detect`/`run`**
+3. **Resolve project-local tool binaries in `detect`/`run`**
    - Invoking the CLI directly (`node packages/core/dist/cli/index.js check --tier=fast`) skips
      the Biome check with `spawn biome ENOENT` even though Biome is installed, because
      `execFile` does not see `node_modules/.bin` on PATH; running through `pnpm sentiness ...`

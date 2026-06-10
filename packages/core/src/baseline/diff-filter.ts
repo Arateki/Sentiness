@@ -1,4 +1,5 @@
 import type {
+  Category,
   ChangedLineRanges,
   CheckMetrics,
   CheckResult,
@@ -31,6 +32,12 @@ export type BaselineApplication = {
   readonly suppressedCount: number;
   readonly metricRegressions: readonly MetricRegression[];
 };
+
+// Security advisories appear over time without the code changing, and platform
+// results signal Sentiness's own failures; neither is caused by the current
+// patch, so the diff filter never drops them. The baseline — not the diff
+// filter — is the mechanism for accepting known findings in these categories.
+const DIFF_DROP_EXEMPT_CATEGORIES: ReadonlySet<Category> = new Set(['security', 'platform']);
 
 function suppressedFingerprints(baseline: BaselineSnapshot | undefined): ReadonlySet<string> {
   return new Set((baseline?.suppressed ?? []).map((entry) => entry.fingerprint));
@@ -160,11 +167,14 @@ export function applyBaselineToOutcome(
       // Metrics are preserved on the original result for compareMetrics below.
       results.set(checkId, resultWithFindings(result, []));
     } else {
+      const category = outcome.checkMetadata.get(checkId)?.category;
+      const dropOutOfDiff =
+        options.diffOnly && !(category !== undefined && DIFF_DROP_EXEMPT_CATEGORIES.has(category));
       const filtered = applyBaseline(
         result.findings,
         baseline,
         outcome.context.changedFiles,
-        options.diffOnly,
+        dropOutOfDiff,
         outcome.context.changedRanges,
       );
       suppressedCount += filtered.suppressedCount;

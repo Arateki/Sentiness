@@ -198,6 +198,82 @@ describe('diff-filter', () => {
     expect(filtered.findings).toEqual([{ ...changedFinding, introducedInDiff: true }]);
   });
 
+  it('keeps security and platform findings outside the diff in diffOnly mode', () => {
+    const securityId = asCheckId('osv-scanner');
+    const platformId = asCheckId('platform-check');
+    const lintId = asCheckId('lint-check');
+    const finding = (id: typeof securityId, fingerprint: string, file: string): Finding => ({
+      ...makeFinding(fingerprint, file),
+      checkId: id,
+    });
+    const violations = (findings: readonly Finding[]): CheckResult => ({
+      status: 'violations',
+      findings,
+      durationMs: 1,
+    });
+    const outcome: RunOutcome = {
+      runId: 'run',
+      startedAt: '2024-01-01T00:00:00.000Z',
+      completedAt: '2024-01-01T00:00:01.000Z',
+      durationMs: 1000,
+      results: new Map([
+        [securityId, violations([finding(securityId, 'a'.repeat(64), 'pnpm-lock.yaml')])],
+        [platformId, violations([finding(platformId, 'b'.repeat(64), 'sentiness.config.json')])],
+        [lintId, violations([finding(lintId, 'c'.repeat(64), 'src/other.ts')])],
+      ]),
+      checkMetadata: new Map([
+        [securityId, { category: 'security' }],
+        [platformId, { category: 'platform' }],
+        [lintId, { category: 'lint' }],
+      ]),
+      context: {
+        cwd: '/project',
+        tier: 'fast',
+        trigger: null,
+        mode: 'diff',
+        baseRef: 'HEAD',
+        headRef: 'HEAD',
+        changedFiles: ['src/new.ts'],
+        changedRanges: new Map(),
+      },
+    };
+
+    const application = applyBaselineToOutcome(outcome, undefined, {
+      baselinePath: null,
+      diffOnly: true,
+    });
+
+    const security = application.outcome.results.get(securityId)?.findings ?? [];
+    expect(security).toHaveLength(1);
+    expect(security[0]?.introducedInDiff).toBe(false);
+    expect(application.outcome.results.get(platformId)?.findings).toHaveLength(1);
+    expect(application.outcome.results.get(lintId)?.findings).toHaveLength(0);
+  });
+
+  it('still suppresses baselined security findings in diffOnly mode', () => {
+    const securityId = asCheckId('osv-scanner');
+    const fingerprint = 'd'.repeat(64);
+    const securityFinding: Finding = {
+      ...makeFinding(fingerprint, 'pnpm-lock.yaml'),
+      checkId: securityId,
+    };
+    const outcome: RunOutcome = {
+      ...makeOutcome({ status: 'violations', findings: [securityFinding], durationMs: 1 }),
+      results: new Map([
+        [securityId, { status: 'violations', findings: [securityFinding], durationMs: 1 }],
+      ]),
+      checkMetadata: new Map([[securityId, { category: 'security' }]]),
+    };
+
+    const application = applyBaselineToOutcome(outcome, makeBaseline(fingerprint), {
+      baselinePath: '.sentiness/baseline.json',
+      diffOnly: true,
+    });
+
+    expect(application.outcome.results.get(securityId)?.findings).toHaveLength(0);
+    expect(application.suppressedCount).toBe(1);
+  });
+
   it('compares metrics in both directions', () => {
     expect(
       compareMetrics(
