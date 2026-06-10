@@ -44,7 +44,7 @@ const DoctorResultSchema = z.object({
 const InstallSkillResultSchema = z.object({
   results: z.array(
     z.object({
-      agent: z.enum(['claude-code', 'codex', 'gemini']),
+      agent: z.enum(['claude-code', 'claude-code-skill', 'codex', 'gemini']),
       targetPath: z.string().min(1),
       changed: z.boolean(),
     }),
@@ -497,7 +497,12 @@ describe('Sentiness CLI E2E full flow', () => {
       parseJson((await runCli(projectDir, ['install-skill', '--agent=all'])).stdout),
     );
 
-    expect(first.results.map((result) => result.agent)).toEqual(['claude-code', 'codex', 'gemini']);
+    expect(first.results.map((result) => result.agent)).toEqual([
+      'claude-code',
+      'claude-code-skill',
+      'codex',
+      'gemini',
+    ]);
     expect(first.results.every((result) => result.changed)).toBe(true);
     expect(second.results.every((result) => !result.changed)).toBe(true);
 

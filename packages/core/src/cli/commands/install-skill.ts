@@ -10,7 +10,12 @@ type AdapterModule = {
 };
 
 function isAgentName(value: string): value is AgentName {
-  return value === 'claude-code' || value === 'codex' || value === 'gemini';
+  return (
+    value === 'claude-code' ||
+    value === 'claude-code-skill' ||
+    value === 'codex' ||
+    value === 'gemini'
+  );
 }
 
 function parseAgent(value: unknown): AgentName | 'all' | undefined {
@@ -54,7 +59,9 @@ function adaptersFor(
 export async function installSkillCommand(args: ParsedArgs, deps: CommandDeps): Promise<number> {
   const requestedAgent = parseAgent(args.agent);
   if (!requestedAgent) {
-    deps.logger.error('Usage: sentiness install-skill --agent=<claude-code|codex|gemini|all>');
+    deps.logger.error(
+      'Usage: sentiness install-skill --agent=<claude-code|claude-code-skill|codex|gemini|all>',
+    );
     return 1;
   }
 

@@ -1,12 +1,23 @@
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import type { FileSystem } from '@sentiness/check-sdk';
 import { renderSkill } from './render.js';
 import type { AgentAdapter, AgentName, InstallResult, RenderOptions } from './types.js';
 
+const SKILL_RELATIVE_PATH = '.claude/skills/sentiness/SKILL.md';
+const SKILL_FRONTMATTER = `---
+name: sentiness
+description: Run Sentiness quality checks before declaring a task complete and after every meaningful edit. Use when the user is wrapping up changes, asks to "verify", "check", or "validate" code, when CI is failing locally, or when there are unacked Sentiness pending feedback items from a previous session.
+---
+`;
+
+function skillFileContent(options: RenderOptions): string {
+  return `${SKILL_FRONTMATTER}\n${renderSkill(options).trimEnd()}\n`;
+}
+
 const START_MARKER = '<!-- sentiness:start -->';
 const END_MARKER = '<!-- sentiness:end -->';
 
-type TargetFile = AgentAdapter['targetFile'];
+type TargetFile = string;
 
 function managedSection(options: RenderOptions): string {
   return `${START_MARKER}\n${renderSkill(options).trimEnd()}\n${END_MARKER}\n`;
@@ -56,3 +67,15 @@ export function createFileAdapter(agent: AgentName, targetFile: TargetFile): Age
 }
 
 export const claudeCodeAdapter = createFileAdapter('claude-code', 'CLAUDE.md');
+
+export const claudeCodeSkillAdapter: AgentAdapter = {
+  agent: 'claude-code-skill',
+  targetFile: SKILL_RELATIVE_PATH,
+  async install(cwd: string, fs: FileSystem, options: RenderOptions): Promise<InstallResult> {
+    const targetPath = join(cwd, SKILL_RELATIVE_PATH);
+    const nextContent = skillFileContent(options);
+    await fs.mkdir(dirname(targetPath), { recursive: true });
+    const changed = await writeIfChanged(targetPath, nextContent, fs);
+    return { agent: 'claude-code-skill', targetPath, changed };
+  },
+};

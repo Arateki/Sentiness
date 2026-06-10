@@ -7,7 +7,7 @@ export interface RenderOptions {
   readonly pendingPath: string;
 }
 
-export type AgentName = 'claude-code' | 'codex' | 'gemini';
+export type AgentName = 'claude-code' | 'claude-code-skill' | 'codex' | 'gemini';
 
 export interface InstallResult {
   readonly agent: AgentName;
@@ -17,6 +17,6 @@ export interface InstallResult {
 
 export interface AgentAdapter {
   readonly agent: AgentName;
-  readonly targetFile: 'CLAUDE.md' | 'AGENTS.md' | 'GEMINI.md';
+  readonly targetFile: string;
   install(cwd: string, fs: FileSystem, options: RenderOptions): Promise<InstallResult>;
 }
