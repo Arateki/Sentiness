@@ -1,6 +1,11 @@
 {
   "name": "@sentiness/check-sdk",
   "version": "0.1.0",
+  "description": "Public types and contract for writing Sentiness check plugins.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.10"
+  },
   "type": "module",
   "files": [
     "dist",

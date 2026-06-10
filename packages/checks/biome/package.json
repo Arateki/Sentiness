@@ -1,6 +1,11 @@
 {
   "name": "@sentiness/check-biome",
   "version": "0.1.0",
+  "description": "Sentiness check that runs Biome lint and maps diagnostics to normalized findings.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.10"
+  },
   "type": "module",
   "files": [
     "dist",
@@ -19,7 +24,7 @@
   },
   "dependencies": {
     "@sentiness/check-sdk": "workspace:*",
-    "zod": "latest"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@sentiness/_test-utils": "workspace:*",

@@ -1,6 +1,11 @@
 {
   "name": "@sentiness/adapters",
   "version": "0.1.0",
+  "description": "Agent instruction adapters for Sentiness: Claude Code (managed section and skill), Codex, and Gemini.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.10"
+  },
   "type": "module",
   "files": [
     "dist",
