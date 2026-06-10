@@ -457,6 +457,23 @@ The final `sentiness check` report returned `summary.status: "ok"` with no findi
 - E2E full-flow suite exists for `doctor`, `check`, blocking findings, background status/result/pending feedback/ack, baseline init suppression, baseline `update`/`accept`/`prune`, `install-hooks` including direct-hook idempotency/error cases, non-interactive `init`, `install-skill`, and the generated report schema artifact.
 - Unit/property coverage now includes runtime package-version derivation, baseline/diff idempotency, deeper public report-schema artifact validation, and public docs CLI example validation.
 
+## Tool-config coverage extension (2026-06-10)
+
+The Phase J `configFiles` + `defaultConfig` pattern was extended:
+
+- `dependency-cruiser` now declares `configFiles`
+  (`.dependency-cruiser.cjs`/`.js`/`.mjs`/`.json`, the tool's own lookup order) and a
+  `defaultConfig` template (`.dependency-cruiser.cjs` with `no-circular` error and `no-orphans`
+  warn rules), so `doctor` flags the gap and `init-config` can bootstrap it.
+- **Decision:** `jscpd` and `semgrep` deliberately do **not** declare `configFiles`. jscpd runs
+  fine with built-in defaults, and the semgrep check passes its ruleset via `--config=p/javascript`
+  (overridable in check config) rather than a project file. Declaring config files for them would
+  make `doctor` demand files the tools do not need.
+- E2E coverage added: `doctor` reports `config: { configured: false, canCreateDefault: true }` plus
+  a `configSuggestion`, `init-config --check=dependency-cruiser` writes the template, a second
+  `doctor` reports `configured: true` with `foundFile`, and a re-run of `init-config` is
+  idempotent (`skipped-existing`, file byte-identical).
+
 ## Dogfooding fix: Knip false positive on Stryker command runner (2026-06-10)
 
 Running the standard tier (`sentiness check --tier=standard --trigger=pre-done`) surfaced a
@@ -486,11 +503,7 @@ a built-CLI smoke test against a file quoting the markers inline.
 
 ## Recommended next steps
 
-1. **`configFiles` + `defaultConfig` for more checks** (carried over from Phase J)
-   - Extend the pattern to `dependency-cruiser`, `jscpd`, and `semgrep`; cover `init-config` and
-     `doctor` config validation with E2E tests against the demo project.
-
-2. **Playwright visual-feedback check (idea raised 2026-06-10)**
+1. **Playwright visual-feedback check (idea raised 2026-06-10)**
    - Proposed: a `@sentiness/check-playwright` (slow tier) that detects Playwright, runs the
      target project's E2E suite, and surfaces failed tests plus the paths of generated
      screenshots/traces as findings and metrics, so multimodal agents can inspect UI state with
@@ -498,7 +511,7 @@ a built-CLI smoke test against a file quoting the markers inline.
      reported screenshot paths. Not designed yet — needs a spec for artifact paths in the report
      contract, report-size discipline, and `examples/demo-project` coverage.
 
-3. **Resolve project-local tool binaries in `detect`/`run`**
+2. **Resolve project-local tool binaries in `detect`/`run`**
    - Invoking the CLI directly (`node packages/core/dist/cli/index.js check --tier=fast`) skips
      the Biome check with `spawn biome ENOENT` even though Biome is installed, because
      `execFile` does not see `node_modules/.bin` on PATH; running through `pnpm sentiness ...`

@@ -18,6 +18,7 @@ const rootBinPath = join(repoRoot, 'node_modules/.bin');
 const checkPackages = {
   biome: join(repoRoot, 'packages/checks/biome'),
   coverage: join(repoRoot, 'packages/checks/coverage'),
+  'dependency-cruiser': join(repoRoot, 'packages/checks/dependency-cruiser'),
 } as const;
 const execFileAsync = promisify(execFile);
 
@@ -37,9 +38,28 @@ const DoctorResultSchema = z.object({
       id: z.string(),
       available: z.boolean(),
       version: z.string().optional(),
+      config: z
+        .object({
+          configured: z.boolean(),
+          expectedFiles: z.array(z.string()),
+          foundFile: z.string().optional(),
+          canCreateDefault: z.boolean(),
+        })
+        .optional(),
+      configSuggestion: z.string().optional(),
     }),
   ),
   loadFailures: z.array(z.unknown()),
+});
+const InitConfigResultSchema = z.object({
+  outcomes: z.array(
+    z.object({
+      checkId: z.string(),
+      action: z.enum(['created', 'skipped-existing', 'skipped-no-default', 'skipped-no-files']),
+      path: z.string().optional(),
+      existing: z.string().optional(),
+    }),
+  ),
 });
 const InstallSkillResultSchema = z.object({
   results: z.array(
@@ -226,6 +246,68 @@ describe('Sentiness CLI E2E full flow', () => {
       }),
     ]);
     expect(doctor.checks[0]?.version).toContain('Version:');
+  });
+
+  it('flags a missing tool config in doctor and writes it through init-config', async () => {
+    const projectDir = await createDemoCopy('export const value = 1;\n', ['dependency-cruiser']);
+    await writeFile(
+      join(projectDir, 'sentiness.config.json'),
+      `${JSON.stringify(
+        {
+          schemaVersion: '1.0',
+          checks: { 'dependency-cruiser': { enabled: true } },
+        },
+        null,
+        2,
+      )}\n`,
+    );
+
+    const before = await runCli(projectDir, ['doctor']);
+    const beforeDoctor = DoctorResultSchema.parse(parseJson(before.stdout));
+    const cruiserBefore = beforeDoctor.checks.find((check) => check.id === 'dependency-cruiser');
+
+    expect(before.exitCode).toBe(1);
+    expect(beforeDoctor.ok).toBe(false);
+    expect(cruiserBefore?.config).toMatchObject({
+      configured: false,
+      canCreateDefault: true,
+    });
+    expect(cruiserBefore?.config?.expectedFiles).toContain('.dependency-cruiser.cjs');
+    expect(cruiserBefore?.configSuggestion).toBe(
+      'sentiness init-config --check=dependency-cruiser',
+    );
+
+    const created = await runCli(projectDir, ['init-config', '--check=dependency-cruiser']);
+    const createdOutcomes = InitConfigResultSchema.parse(parseJson(created.stdout));
+
+    expect(created.exitCode).toBe(0);
+    expect(createdOutcomes.outcomes).toEqual([
+      { checkId: 'dependency-cruiser', action: 'created', path: '.dependency-cruiser.cjs' },
+    ]);
+    const written = await readFile(join(projectDir, '.dependency-cruiser.cjs'), 'utf8');
+    expect(written).toContain('no-circular');
+    expect(written).toContain('no-orphans');
+
+    const after = await runCli(projectDir, ['doctor']);
+    const afterDoctor = DoctorResultSchema.parse(parseJson(after.stdout));
+    const cruiserAfter = afterDoctor.checks.find((check) => check.id === 'dependency-cruiser');
+
+    expect(cruiserAfter?.config).toMatchObject({
+      configured: true,
+      foundFile: '.dependency-cruiser.cjs',
+    });
+    expect(cruiserAfter?.configSuggestion).toBeUndefined();
+
+    const rerun = await runCli(projectDir, ['init-config', '--check=dependency-cruiser']);
+    const rerunOutcomes = InitConfigResultSchema.parse(parseJson(rerun.stdout));
+    const unchanged = await readFile(join(projectDir, '.dependency-cruiser.cjs'), 'utf8');
+
+    expect(rerunOutcomes.outcomes[0]).toMatchObject({
+      checkId: 'dependency-cruiser',
+      action: 'skipped-existing',
+      existing: '.dependency-cruiser.cjs',
+    });
+    expect(unchanged).toBe(written);
   });
 
   it('runs the built CLI against the demo project', async () => {

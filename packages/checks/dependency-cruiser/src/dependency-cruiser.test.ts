@@ -22,6 +22,25 @@ function context(process: FakeProcessRunner, fs = new InMemoryFileSystem()): Che
 }
 
 describe('dependencyCruiserCheck', () => {
+  it('declares the tool-config files dependency-cruiser looks up', () => {
+    expect(dependencyCruiserCheck.configFiles).toEqual([
+      '.dependency-cruiser.cjs',
+      '.dependency-cruiser.js',
+      '.dependency-cruiser.mjs',
+      '.dependency-cruiser.json',
+    ]);
+  });
+
+  it('provides a default config template with no-circular and no-orphans rules', () => {
+    const template = dependencyCruiserCheck.defaultConfig?.();
+
+    expect(template?.path).toBe('.dependency-cruiser.cjs');
+    expect(template?.content).toContain('module.exports');
+    expect(template?.content).toContain('no-circular');
+    expect(template?.content).toContain('no-orphans');
+    expect(template?.content).toContain('node_modules');
+  });
+
   it('detects depcruise availability', async () => {
     const process = new FakeProcessRunner();
     process.enqueue({ exitCode: 0, stdout: '16.0.0\n', stderr: '' });

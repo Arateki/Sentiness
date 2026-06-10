@@ -80,6 +80,46 @@ async function toFinding(
   };
 }
 
+// Lookup order matches dependency-cruiser's own default config resolution.
+const DEPENDENCY_CRUISER_CONFIG_FILES = [
+  '.dependency-cruiser.cjs',
+  '.dependency-cruiser.js',
+  '.dependency-cruiser.mjs',
+  '.dependency-cruiser.json',
+] as const;
+
+function defaultDependencyCruiserConfig(): { path: string; content: string } {
+  return {
+    path: '.dependency-cruiser.cjs',
+    content: `/** @type {import('dependency-cruiser').IConfiguration} */
+module.exports = {
+  forbidden: [
+    {
+      name: 'no-circular',
+      severity: 'error',
+      comment: 'Circular dependencies make modules harder to change safely.',
+      from: {},
+      to: { circular: true },
+    },
+    {
+      name: 'no-orphans',
+      severity: 'warn',
+      comment: 'Orphan modules are likely dead code; remove them or wire them in.',
+      from: {
+        orphan: true,
+        pathNot: ['(^|/)[.][^/]+[.](?:js|cjs|mjs|ts|cts|mts|json)$', '[.]d[.]ts$'],
+      },
+      to: {},
+    },
+  ],
+  options: {
+    doNotFollow: { path: 'node_modules' },
+  },
+};
+`,
+  };
+}
+
 function runArgs(config: DependencyCruiserConfig): readonly string[] {
   const paths = config.paths && config.paths.length > 0 ? config.paths : ['.'];
   return [
@@ -96,6 +136,8 @@ export const dependencyCruiserCheck: Check<DependencyCruiserConfig> = {
   category: 'architecture',
   defaultTier: 'standard',
   configSchema: DependencyCruiserConfigSchema,
+  configFiles: DEPENDENCY_CRUISER_CONFIG_FILES,
+  defaultConfig: defaultDependencyCruiserConfig,
   async detect(ctx) {
     const result = await ctx.process.execFile('depcruise', ['--version'], {
       cwd: ctx.cwd,
