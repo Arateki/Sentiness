@@ -36,13 +36,13 @@ pnpm sentiness check --tier=fast --compact   # summary.status: ok
 
 See the numbered list at the end of `docs/progress.md`. In priority order:
 
-1. Harden adapter marker matching (match only full-line markers).
-2. pnpm/Yarn lockfile parsers for `@sentiness/check-deps-diff`.
-3. Hunk-level diff policy for findings without line locations.
-4. `configFiles`/`defaultConfig` for dependency-cruiser, jscpd, and semgrep, with E2E coverage.
-5. Resolve project-local tool binaries (`node_modules/.bin`) in `detect`/`run`.
+1. pnpm/Yarn lockfile parsers for `@sentiness/check-deps-diff`.
+2. Hunk-level diff policy for findings without line locations.
+3. `configFiles`/`defaultConfig` for dependency-cruiser, jscpd, and semgrep, with E2E coverage.
+4. Resolve project-local tool binaries (`node_modules/.bin`) in `detect`/`run`.
 
-Done on 2026-06-09 (after this handoff was first written): `config.agents` now accepts
-`'claude-code-skill'`.
+Done after this handoff was first written: `config.agents` accepts `'claude-code-skill'`
+(2026-06-09); the managed-section writer only matches full-line markers, closing the root cause
+of the CLAUDE.md corruption incident (2026-06-10).
 
 Each item is one task: one branch, one PR, per `CLAUDE.md` §3.9.

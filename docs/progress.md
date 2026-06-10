@@ -470,30 +470,35 @@ updated to match the implemented adapter surface (including `claude-code-skill`)
 spec documents the skill adapter. `docs/agent-skill.md` now warns that managed files must never
 quote the literal markers.
 
-Product follow-up worth considering: make the writer only match markers that occupy an entire line
-(e.g. `^<marker>$`), which would have ignored the inline-code occurrence. This is a behavior change
-to `@sentiness/adapters` and deserves its own task/branch.
+Product follow-up **done 2026-06-10**: the managed-section writer now only matches markers that
+occupy an entire line (`line.trim() === marker`), so inline-quoted marker text can never delimit
+the section. Covered by a regression test reproducing this incident, an indented-marker test, and
+a built-CLI smoke test against a file quoting the markers inline.
 
 ## Recommended next steps
 
-1. **Marker matching robustness in `@sentiness/adapters`**
-   - Match managed markers only when they occupy an entire line, so marker text quoted inline in
-     documentation can never be replaced (see the dogfooding incident above).
-
-2. **pnpm and Yarn lockfile parsers**
+1. **pnpm and Yarn lockfile parsers**
    - Extend `@sentiness/check-deps-diff` with parsers for `pnpm-lock.yaml` (YAML, requires a
      dependency or a careful in-tree subset) and `yarn.lock` v1/v2. Goal: `transitiveDiffAvailable`
      is `true` for any supported lockfile, not only npm.
 
-3. **Hunk-level diff for adapter-defined locations**
+2. **Hunk-level diff for adapter-defined locations**
    - Some checks emit findings without a `location.startLine` (notably dependency, package, and
      repository-level findings). Those still fall back to file-level diff matching. Decide whether
      specific check categories should be exempt from `--diff` filtering altogether or always
      attached to the changed file set.
 
-4. **`configFiles` + `defaultConfig` for more checks** (carried over from Phase J)
+3. **`configFiles` + `defaultConfig` for more checks** (carried over from Phase J)
    - Extend the pattern to `dependency-cruiser`, `jscpd`, and `semgrep`; cover `init-config` and
      `doctor` config validation with E2E tests against the demo project.
+
+4. **Playwright visual-feedback check (idea raised 2026-06-10)**
+   - Proposed: a `@sentiness/check-playwright` (slow tier) that detects Playwright, runs the
+     target project's E2E suite, and surfaces failed tests plus the paths of generated
+     screenshots/traces as findings and metrics, so multimodal agents can inspect UI state with
+     their vision capabilities. The skill template would gain a section telling agents to open
+     reported screenshot paths. Not designed yet — needs a spec for artifact paths in the report
+     contract, report-size discipline, and `examples/demo-project` coverage.
 
 5. **Resolve project-local tool binaries in `detect`/`run`**
    - Invoking the CLI directly (`node packages/core/dist/cli/index.js check --tier=fast`) skips

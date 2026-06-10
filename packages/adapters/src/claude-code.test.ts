@@ -45,6 +45,38 @@ describe('claudeCodeAdapter', () => {
     expect(content.match(/<!-- sentiness:start -->/g)).toHaveLength(1);
   });
 
+  it('ignores marker text quoted inline and appends a managed section instead', async () => {
+    const quotedLine =
+      'The writer looks for `<!-- sentiness:start -->` and `<!-- sentiness:end -->` markers.';
+    const fs = new InMemoryFileSystem({
+      '/project/CLAUDE.md': `# Spec\n\n${quotedLine}\n`,
+    });
+
+    const first = await claudeCodeAdapter.install('/project', fs, options);
+    const second = await claudeCodeAdapter.install('/project', fs, options);
+    const content = await fs.readFile('/project/CLAUDE.md');
+
+    expect(content).toContain(quotedLine);
+    expect(content).toMatch(/\n<!-- sentiness:start -->\n/);
+    expect(content.trimEnd().endsWith('<!-- sentiness:end -->')).toBe(true);
+    expect(first.changed).toBe(true);
+    expect(second.changed).toBe(false);
+  });
+
+  it('replaces a managed section whose markers are indented', async () => {
+    const fs = new InMemoryFileSystem({
+      '/project/CLAUDE.md':
+        '# Existing\n\n  <!-- sentiness:start -->\nold\n  <!-- sentiness:end -->\n',
+    });
+
+    await claudeCodeAdapter.install('/project', fs, options);
+    const content = await fs.readFile('/project/CLAUDE.md');
+
+    expect(content).toContain('# Existing');
+    expect(content).not.toContain('\nold\n');
+    expect(content.match(/<!-- sentiness:start -->/g)).toHaveLength(1);
+  });
+
   it('rejects malformed managed markers', async () => {
     const fs = new InMemoryFileSystem({
       '/project/CLAUDE.md': '# Existing\n\n<!-- sentiness:start -->\nmissing end\n',

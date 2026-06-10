@@ -43,9 +43,11 @@ The adapters write content between:
 Content outside those markers is left intact. If the file does not exist, Sentiness creates it. If
 the file exists without a managed section, Sentiness appends the section.
 
-> **Warning:** the writer replaces everything between the *first* occurrence of each marker in the
-> target file, including marker text quoted inside documentation or code fences. Do not write the
-> literal marker comments anywhere else in a managed file.
+The writer only recognizes a marker when it is the entire content of its line (leading/trailing
+whitespace allowed). Marker text quoted inline — for example inside documentation prose or code
+spans — is ignored, and the managed section is appended at the end of the file instead. Still,
+avoid writing the literal marker comments on their own line outside the managed section: the
+writer binds to the first full-line occurrence of each marker.
 
 The `claude-code-skill` adapter is the exception: it owns the whole `SKILL.md` file and does not use
 markers.

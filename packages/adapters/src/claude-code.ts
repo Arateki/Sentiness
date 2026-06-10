@@ -23,21 +23,39 @@ function managedSection(options: RenderOptions): string {
   return `${START_MARKER}\n${renderSkill(options).trimEnd()}\n${END_MARKER}\n`;
 }
 
-function replaceManagedSection(content: string, section: string, targetPath: string): string {
-  const start = content.indexOf(START_MARKER);
-  const end = content.indexOf(END_MARKER);
+interface MarkerLine {
+  readonly lineStart: number;
+  readonly lineEnd: number;
+}
 
-  if (start === -1 && end === -1) {
+// Only a line whose entire trimmed content is the marker counts: marker text
+// quoted inline (e.g. in documentation) must never delimit the managed section.
+function findMarkerLine(content: string, marker: string): MarkerLine | undefined {
+  let offset = 0;
+  for (const line of content.split('\n')) {
+    if (line.trim() === marker) {
+      return { lineStart: offset, lineEnd: offset + line.length };
+    }
+    offset += line.length + 1;
+  }
+  return undefined;
+}
+
+function replaceManagedSection(content: string, section: string, targetPath: string): string {
+  const start = findMarkerLine(content, START_MARKER);
+  const end = findMarkerLine(content, END_MARKER);
+
+  if (!start && !end) {
     const separator = content.trimEnd().length > 0 ? '\n\n' : '';
     return `${content.trimEnd()}${separator}${section}`;
   }
 
-  if (start === -1 || end === -1 || end < start) {
+  if (!start || !end || end.lineStart < start.lineStart) {
     throw new Error(`Invalid Sentiness managed section markers in ${targetPath}`);
   }
 
-  const before = content.slice(0, start).trimEnd();
-  const after = content.slice(end + END_MARKER.length).trimStart();
+  const before = content.slice(0, start.lineStart).trimEnd();
+  const after = content.slice(end.lineEnd).trimStart();
   const prefix = before.length > 0 ? `${before}\n\n` : '';
   const suffix = after.length > 0 ? `\n${after}` : '';
   return `${prefix}${section}${suffix}`;
