@@ -448,6 +448,15 @@ The final `sentiness check` report returned `summary.status: "ok"` with no findi
 - E2E full-flow suite exists for `doctor`, `check`, blocking findings, background status/result/pending feedback/ack, baseline init suppression, baseline `update`/`accept`/`prune`, `install-hooks` including direct-hook idempotency/error cases, non-interactive `init`, `install-skill`, and the generated report schema artifact.
 - Unit/property coverage now includes runtime package-version derivation, baseline/diff idempotency, deeper public report-schema artifact validation, and public docs CLI example validation.
 
+## Dogfooding fix: Knip false positive on Stryker command runner (2026-06-10)
+
+Running the standard tier (`sentiness check --tier=standard --trigger=pre-done`) surfaced a
+blocking Knip finding introduced with `stryker.conf.json` (commit `00cce0a`): Knip's Stryker plugin
+maps `testRunner: "command"` to a `@stryker-mutator/command-runner` dependency, but the command
+runner is built into `@stryker-mutator/core` and no such npm package exists. Added it to
+`ignoreDependencies` in `knip.json` — the same mechanism already used for the dynamic-import
+false positives. The standard tier is clean again.
+
 ## Dogfooding incident: CLAUDE.md corruption (fixed 2026-06-09)
 
 Running `install-skill --agent=claude-code` against this repository corrupted `CLAUDE.md` (commit

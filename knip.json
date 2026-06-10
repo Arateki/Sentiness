@@ -13,6 +13,7 @@
         "@sentiness/check-osv-scanner",
         "@sentiness/check-semgrep",
         "@sentiness/check-stryker",
+        "@stryker-mutator/command-runner",
         "@stryker-mutator/core"
       ]
     },
