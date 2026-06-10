@@ -36,10 +36,16 @@ pnpm sentiness check --tier=fast --compact   # summary.status: ok
 
 See the numbered list at the end of `docs/progress.md`. In priority order:
 
-Current work: **npm publication** (decided 2026-06-10 with the human): MIT license, metadata
-(`license`/`description`/`repository`) across the 14 public manifests, root LICENSE file, GitHub
-repository creation + remote, then `pnpm -r publish --access public` after the human runs
-`npm login` and creates the `@sentiness` org (scope verified free on npm).
+**Published (2026-06-10):** all 14 public packages are live on npm under the `@sentiness` scope
+(org owned by the `arateki.co` npm account). `@sentiness/core` is at **0.1.1** (0.1.0 had a cac
+flag-registration bug: registering `--no-install`/`--no-hooks` defaulted those flags to true,
+so plain `init --yes` installed git hooks; caught by a real-npm smoke test, fixed, republished,
+and guarded by the E2E non-interactive init test). The other 13 packages are at 0.1.0.
+GitHub remote: git@github.com:Arateki/Sentiness.git, branch `main`.
+
+Release process for next versions: bump version in the package, `pnpm build`, then
+`pnpm --filter <pkg> publish --access public --publish-branch main` (npm auth via granular token
+in `~/.npmrc`).
 
 Done recently: T4.4 one-command onboarding (`sentiness init` detects, recommends, installs with
 consent, installs skills/hooks — see `docs/progress.md`); T5.11 (`@sentiness/check-playwright`)

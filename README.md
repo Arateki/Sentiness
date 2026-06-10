@@ -25,7 +25,22 @@ to decide which package to install for the checks you enabled.
 
 ## Add Sentiness To A Project
 
-After the Sentiness CLI is available on the target project's package-manager path:
+The packages are published on npm under the `@sentiness` scope. Install the core CLI and run the
+one-command onboarding — it detects your stack, recommends checks, and (on consent, or with
+`--install`) installs the matching `@sentiness/check-*` packages and npm tools for you:
+
+```sh
+pnpm add -D @sentiness/core
+pnpm exec sentiness init
+```
+
+Fully non-interactive:
+
+```sh
+pnpm exec sentiness init --yes --checks=biome,knip --install --skill=claude-code-skill --hooks
+```
+
+Each step is also available as its own command:
 
 ```sh
 sentiness init --yes --checks=biome --no-baseline
