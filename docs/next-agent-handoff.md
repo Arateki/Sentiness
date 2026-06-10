@@ -36,11 +36,13 @@ pnpm sentiness check --tier=fast --compact   # summary.status: ok
 
 See the numbered list at the end of `docs/progress.md`. In priority order:
 
-1. Extend `config.agents` with `'claude-code-skill'` (Zod enum in
-   `packages/core/src/config/config.ts` + init wizard + T1.1 spec sync).
-2. Harden adapter marker matching (match only full-line markers).
-3. pnpm/Yarn lockfile parsers for `@sentiness/check-deps-diff`.
-4. Hunk-level diff policy for findings without line locations.
-5. `configFiles`/`defaultConfig` for dependency-cruiser, jscpd, and semgrep, with E2E coverage.
+1. Harden adapter marker matching (match only full-line markers).
+2. pnpm/Yarn lockfile parsers for `@sentiness/check-deps-diff`.
+3. Hunk-level diff policy for findings without line locations.
+4. `configFiles`/`defaultConfig` for dependency-cruiser, jscpd, and semgrep, with E2E coverage.
+5. Resolve project-local tool binaries (`node_modules/.bin`) in `detect`/`run`.
+
+Done on 2026-06-09 (after this handoff was first written): `config.agents` now accepts
+`'claude-code-skill'`.
 
 Each item is one task: one branch, one PR, per `CLAUDE.md` §3.9.

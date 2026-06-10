@@ -54,6 +54,24 @@ describe('config', () => {
     expect(categoryFromString('invalid-category')).toBeUndefined();
   });
 
+  describe('agents', () => {
+    it('accepts every supported agent adapter name', () => {
+      const config = resolveConfig(
+        validateConfig({
+          schemaVersion: '1.0',
+          agents: ['claude-code', 'claude-code-skill', 'codex', 'gemini'],
+        }),
+      );
+      expect(config.agents).toEqual(['claude-code', 'claude-code-skill', 'codex', 'gemini']);
+    });
+
+    it('rejects unknown agent names', () => {
+      expect(() => validateConfig({ schemaVersion: '1.0', agents: ['vscode'] })).toThrow(
+        ConfigParseError,
+      );
+    });
+  });
+
   describe('loadConfig', () => {
     it('throws ConfigNotFoundError when no config is found', async () => {
       const fs = new InMemoryFileSystem();

@@ -12,7 +12,7 @@ const TriggerSchema = z.enum([
   'manual',
 ]);
 const TierSchema = z.enum(['fast', 'standard', 'slow']);
-const AgentSchema = z.enum(['claude-code', 'codex', 'gemini']);
+const AgentSchema = z.enum(['claude-code', 'claude-code-skill', 'codex', 'gemini']);
 
 const TierConfigSchema = z.object({
   triggers: z.array(TriggerSchema),
@@ -75,7 +75,7 @@ export type SentinessConfig = {
     readonly omitOk?: boolean;
     readonly warningsAreErrors?: boolean;
   };
-  readonly agents?: readonly ('claude-code' | 'codex' | 'gemini')[];
+  readonly agents?: readonly ('claude-code' | 'claude-code-skill' | 'codex' | 'gemini')[];
 };
 
 export type TierSettings = {
@@ -94,7 +94,7 @@ export type ResolvedConfig = {
     readonly omitOk: boolean;
     readonly warningsAreErrors: boolean;
   };
-  readonly agents: readonly ('claude-code' | 'codex' | 'gemini')[];
+  readonly agents: readonly ('claude-code' | 'claude-code-skill' | 'codex' | 'gemini')[];
 };
 
 export const DEFAULT_CONFIG: ResolvedConfig = {

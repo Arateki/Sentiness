@@ -32,6 +32,7 @@ function depsFor(fs: InMemoryFileSystem): CommandDeps {
   };
   const adapters = [
     fakeAdapter('claude-code', 'CLAUDE.md'),
+    fakeAdapter('claude-code-skill', '.claude/skills/sentiness/SKILL.md'),
     fakeAdapter('codex', 'AGENTS.md'),
     fakeAdapter('gemini', 'GEMINI.md'),
   ] as const;
@@ -82,8 +83,26 @@ describe('installSkillCommand', () => {
 
     expect(exitCode).toBe(0);
     expect(await fs.exists('/project/CLAUDE.md')).toBe(true);
+    expect(await fs.exists('/project/.claude/skills/sentiness/SKILL.md')).toBe(true);
     expect(await fs.exists('/project/AGENTS.md')).toBe(true);
     expect(await fs.exists('/project/GEMINI.md')).toBe(true);
+  });
+
+  it('accepts agents: ["claude-code-skill"] in config and installs only the skill', async () => {
+    const fs = new InMemoryFileSystem({
+      '/project/sentiness.config.json': JSON.stringify({
+        ...DEFAULT_CONFIG,
+        agents: ['claude-code-skill'],
+      }),
+    });
+
+    const exitCode = await installSkillCommand({ agent: 'all' }, depsFor(fs));
+
+    expect(exitCode).toBe(0);
+    expect(await fs.exists('/project/.claude/skills/sentiness/SKILL.md')).toBe(true);
+    expect(await fs.exists('/project/CLAUDE.md')).toBe(false);
+    expect(await fs.exists('/project/AGENTS.md')).toBe(false);
+    expect(await fs.exists('/project/GEMINI.md')).toBe(false);
   });
 
   it('filters --agent=all through config.agents when configured', async () => {

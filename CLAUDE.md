@@ -632,7 +632,7 @@ export const DEFAULT_CONFIG: ResolvedConfig;
   baseline: { path: string },                                 // default '.sentiness/baseline.json'
   pending: { path: string },                                  // default '.sentiness/pending-feedback.json'
   reporting: { compact: boolean, omitOk: boolean, warningsAreErrors: boolean },
-  agents: ('claude-code' | 'codex' | 'gemini')[],             // consumed by `install-skill --agent=all` and the init wizard to know which adapter files to maintain
+  agents: ('claude-code' | 'claude-code-skill' | 'codex' | 'gemini')[],  // consumed by `install-skill --agent=all` and the init wizard to know which adapter files to maintain
 }
 ```
 
@@ -1694,7 +1694,7 @@ Same pattern. Target file: `GEMINI.md`. Markers identical.
 - Writes a **whole-file** discoverable Claude Code skill, not a managed section: YAML frontmatter (`name: sentiness` plus a trigger-oriented `description`) followed by the rendered shared template. No start/end markers — the file is fully owned by Sentiness.
 - Idempotent: re-running with the same options returns `changed: false` and does not rewrite the file.
 - Rationale: embedding the full instructions in `CLAUDE.md` bloats every session's context and (as documented in T6.4) is risky on repositories whose docs mention the markers. A skill is loaded on demand by Claude Code instead.
-- Known follow-up: `config.agents` (T1.1) and the init wizard do not yet accept `'claude-code-skill'`; only `install-skill --agent=claude-code-skill` and `--agent=all` reach it.
+- `config.agents` (T1.1) accepts `'claude-code-skill'`, so `--agent=all` can be scoped to the skill adapter via config. The init wizard does not prompt for agents; it points users at `install-skill`.
 
 ---
 

@@ -85,8 +85,9 @@ The implementation should progress in usable slices, not by completing the whole
       four results. The generated `.claude/skills/sentiness/SKILL.md` is committed in this repo as
       dogfooding. All gates pass: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm test:e2e`
       (13/13).
-    - Known follow-up: `config.agents` in `packages/core/src/config/config.ts` still only accepts
-      `'claude-code' | 'codex' | 'gemini'`; the init wizard cannot select the skill adapter yet.
+    - Follow-up resolved 2026-06-09: `config.agents` now accepts `'claude-code-skill'`, with unit
+      coverage in `config.test.ts` and an `install-skill --agent=all` filter test. The init wizard
+      never prompts for agents (it points users at `install-skill`), so no wizard change was needed.
 
 ## Sprint corretivo (2026-04-28 / 2026-04-29)
 
@@ -466,31 +467,26 @@ to `@sentiness/adapters` and deserves its own task/branch.
 
 ## Recommended next steps
 
-1. **Extend `config.agents` with `'claude-code-skill'`**
-   - Update the Zod enum in `packages/core/src/config/config.ts` and the init wizard so the skill
-     adapter can be selected during onboarding, then mirror the change in the T1.1 config shape in
-     `CLAUDE.md`.
-
-2. **Marker matching robustness in `@sentiness/adapters`**
+1. **Marker matching robustness in `@sentiness/adapters`**
    - Match managed markers only when they occupy an entire line, so marker text quoted inline in
      documentation can never be replaced (see the dogfooding incident above).
 
-3. **pnpm and Yarn lockfile parsers**
+2. **pnpm and Yarn lockfile parsers**
    - Extend `@sentiness/check-deps-diff` with parsers for `pnpm-lock.yaml` (YAML, requires a
      dependency or a careful in-tree subset) and `yarn.lock` v1/v2. Goal: `transitiveDiffAvailable`
      is `true` for any supported lockfile, not only npm.
 
-4. **Hunk-level diff for adapter-defined locations**
+3. **Hunk-level diff for adapter-defined locations**
    - Some checks emit findings without a `location.startLine` (notably dependency, package, and
      repository-level findings). Those still fall back to file-level diff matching. Decide whether
      specific check categories should be exempt from `--diff` filtering altogether or always
      attached to the changed file set.
 
-5. **`configFiles` + `defaultConfig` for more checks** (carried over from Phase J)
+4. **`configFiles` + `defaultConfig` for more checks** (carried over from Phase J)
    - Extend the pattern to `dependency-cruiser`, `jscpd`, and `semgrep`; cover `init-config` and
      `doctor` config validation with E2E tests against the demo project.
 
-6. **Resolve project-local tool binaries in `detect`/`run`**
+5. **Resolve project-local tool binaries in `detect`/`run`**
    - Invoking the CLI directly (`node packages/core/dist/cli/index.js check --tier=fast`) skips
      the Biome check with `spawn biome ENOENT` even though Biome is installed, because
      `execFile` does not see `node_modules/.bin` on PATH; running through `pnpm sentiness ...`
