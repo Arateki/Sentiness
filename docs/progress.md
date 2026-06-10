@@ -457,6 +457,17 @@ The final `sentiness check` report returned `summary.status: "ok"` with no findi
 - E2E full-flow suite exists for `doctor`, `check`, blocking findings, background status/result/pending feedback/ack, baseline init suppression, baseline `update`/`accept`/`prune`, `install-hooks` including direct-hook idempotency/error cases, non-interactive `init`, `install-skill`, and the generated report schema artifact.
 - Unit/property coverage now includes runtime package-version derivation, baseline/diff idempotency, deeper public report-schema artifact validation, and public docs CLI example validation.
 
+## Local binary resolution (2026-06-10)
+
+`NodeProcessRunner.execFile` now prepends every `node_modules/.bin` directory from the execution
+`cwd` upward to the child process PATH, mirroring how npm/pnpm resolve binaries for scripts.
+Previously, invoking the CLI directly (`node packages/core/dist/cli/index.js check --tier=fast`)
+skipped external-tool checks with `spawn <tool> ENOENT` even when the tool was installed in the
+project, because only package-manager scripts injected `.bin` into PATH. All checks are fixed at
+once — none of them needed changes. Caller-provided `env` entries still apply on top of the
+inherited environment. Covered by new `process-runner.test.ts` integration tests and verified by
+running the built CLI with a minimal PATH (Biome went from `skipped`/ENOENT to actually running).
+
 ## Tool-config coverage extension (2026-06-10)
 
 The Phase J `configFiles` + `defaultConfig` pattern was extended:
@@ -511,12 +522,7 @@ a built-CLI smoke test against a file quoting the markers inline.
      reported screenshot paths. Not designed yet — needs a spec for artifact paths in the report
      contract, report-size discipline, and `examples/demo-project` coverage.
 
-2. **Resolve project-local tool binaries in `detect`/`run`**
-   - Invoking the CLI directly (`node packages/core/dist/cli/index.js check --tier=fast`) skips
-     the Biome check with `spawn biome ENOENT` even though Biome is installed, because
-     `execFile` does not see `node_modules/.bin` on PATH; running through `pnpm sentiness ...`
-     works. Checks (or the `ProcessRunner`) should resolve binaries from the target project's
-     `node_modules/.bin` before falling back to PATH.
+2. *(resolved 2026-06-10 — see "Local binary resolution" below)*
 
 ## How to resume safely
 

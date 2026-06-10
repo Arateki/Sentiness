@@ -37,7 +37,6 @@ pnpm sentiness check --tier=fast --compact   # summary.status: ok
 See the numbered list at the end of `docs/progress.md`. In priority order:
 
 1. Playwright visual-feedback check (spec first — see `docs/progress.md` item 1).
-2. Resolve project-local tool binaries (`node_modules/.bin`) in `detect`/`run`.
 
 Done after this handoff was first written: `config.agents` accepts `'claude-code-skill'`
 (2026-06-09); the managed-section writer only matches full-line markers, closing the root cause
@@ -46,6 +45,7 @@ of the CLAUDE.md corruption incident (2026-06-10); `deps-diff` now parses `pnpm-
 decided and implemented — `security`/`platform` findings are never dropped by `--diff`
 (2026-06-10); `dependency-cruiser` declares `configFiles`/`defaultConfig` with the
 doctor → init-config cycle covered by E2E, while jscpd/semgrep deliberately stay config-file-free
-(2026-06-10).
+(2026-06-10); `NodeProcessRunner` prepends the cwd's `node_modules/.bin` chain to the child PATH,
+so external-tool checks work when the CLI is invoked directly (2026-06-10).
 
 Each item is one task: one branch, one PR, per `CLAUDE.md` §3.9.
