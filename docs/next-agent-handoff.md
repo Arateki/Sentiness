@@ -36,7 +36,9 @@ pnpm sentiness check --tier=fast --compact   # summary.status: ok
 
 See the numbered list at the end of `docs/progress.md`. In priority order:
 
-1. Playwright visual-feedback check (spec first — see `docs/progress.md` item 1).
+1. Implement the Playwright visual-feedback check — spec is written: `CLAUDE.md` **T5.11**
+   (check package) and **T6.6** (skill template "Visual verification" section + TEMPLATE_VERSION
+   bump). Implement T5.11 first, then T6.6.
 
 Done after this handoff was first written: `config.agents` accepts `'claude-code-skill'`
 (2026-06-09); the managed-section writer only matches full-line markers, closing the root cause

@@ -514,13 +514,13 @@ a built-CLI smoke test against a file quoting the markers inline.
 
 ## Recommended next steps
 
-1. **Playwright visual-feedback check (idea raised 2026-06-10)**
-   - Proposed: a `@sentiness/check-playwright` (slow tier) that detects Playwright, runs the
-     target project's E2E suite, and surfaces failed tests plus the paths of generated
-     screenshots/traces as findings and metrics, so multimodal agents can inspect UI state with
-     their vision capabilities. The skill template would gain a section telling agents to open
-     reported screenshot paths. Not designed yet — needs a spec for artifact paths in the report
-     contract, report-size discipline, and `examples/demo-project` coverage.
+1. **Playwright visual-feedback check — spec written, ready to implement**
+   - Full spec lives in `CLAUDE.md` as **T5.11** (the check: runs `playwright test --reporter=json`
+     in the slow tier, maps `unexpected`/`flaky` tests to findings, exposes screenshot/trace paths
+     through the existing `Finding.references` field — no SDK change) and **T6.6** (skill template
+     gains a "Visual verification" section instructing agents to open referenced screenshots with
+     vision capabilities; requires a `TEMPLATE_VERSION` bump and regenerating the committed
+     dogfooding skill). Implement T5.11 first, then T6.6.
 
 2. *(resolved 2026-06-10 — see "Local binary resolution" below)*
 

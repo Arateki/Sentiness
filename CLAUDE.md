@@ -1571,6 +1571,45 @@ Tool: `semgrep`. Category: `security`. Notes:
 - Default to ruleset `p/javascript`; user can override via check config.
 - Each match is one `Finding`.
 
+#### T5.11 — Check: playwright (visual feedback)
+
+**Depends on:** T0.2
+**Blocks:** T6.6 (template section references this check's output shape)
+**Parallel-safe with:** all other T5.*
+
+Tool: `playwright`. Category: `test-quality`. Default tier: `slow`. Standard package template (`packages/checks/playwright/`).
+
+**Purpose.** Run the target project's Playwright E2E suite and surface failed tests *plus the filesystem paths of the screenshots/traces Playwright captured*, so a multimodal agent can open the screenshots with its vision capabilities and judge the actual UI state instead of inferring it from error text.
+
+**Implementation notes:**
+
+- `detect`: run `ctx.process.execFile('playwright', ['--version'], ...)`. Unavailable when exit ≠ 0. (The `ProcessRunner` prepends the project's `node_modules/.bin` chain to PATH, so a locally installed `@playwright/test` is found without global install.)
+- `configFiles: ['playwright.config.ts', 'playwright.config.js', 'playwright.config.mjs', 'playwright.config.cjs']`. **No `defaultConfig`**: a useful Playwright config is inherently project-specific (`webServer`, `baseURL`, browsers); a generic template would mislead more than help. `doctor` reports the gap with `canCreateDefault: false`.
+- `run`: execute `playwright test --reporter=json` plus `checkConfig.extraArgs ?? []`. The JSON report arrives on stdout. Exit code 1 with parseable JSON is success-with-findings (failed tests); any other non-zero exit, or unparseable output, is `status: 'error'`.
+- Parse with a Zod schema covering: `suites[]` (recursive — suites nest), `specs[].tests[]` with `projectName`, `status` (`'expected' | 'unexpected' | 'flaky' | 'skipped'`), `tests[].results[].error.message`, `tests[].results[].attachments[]` (`name`, `contentType`, `path`), and top-level `stats` (`expected`, `unexpected`, `flaky`, `skipped`). Use `.catchall(z.unknown())` generously; Playwright's report has many fields we ignore.
+- One `Finding` per test with status `unexpected` (severity `error`) or `flaky` (severity `warning`). `skipped`/`expected` produce no findings. `ruleId`: `'playwright-test-failed'` / `'playwright-test-flaky'`.
+- `location`: the spec's `file` (relative to project root) and `line`/`column` from the JSON report.
+- `message`: `"<full title path> failed on <projectName>: <first line of error message>"`.
+- **Artifact paths go in `references`** as project-relative paths (normalize Playwright's absolute attachment paths against `ctx.cwd`). Include attachments whose `contentType` starts with `image/` first, then traces/videos. This deliberately reuses the existing `Finding.references` field instead of extending the SDK: no schema change, and agents already receive `references` today. If a dedicated `artifacts` field ever proves necessary, that is a separate SDK/schema task — do not extend the SDK inside this one (OCP).
+- `suggestion`: `{ kind: 'other', description: 'Open the referenced screenshot(s) to inspect the rendered UI state before changing the test or the code.' }`.
+- Fingerprint: `computeFingerprint` with the spec file as `relativeFilePath`, the test's source line content as `lineContent` (read via `ctx.fs`, cache per file), and `extraDiscriminator` = `projectName + ' ' + full title path`. Flaky and failed findings of the same test must produce different fingerprints (include the ruleId — already a fingerprint input).
+- `metrics`: `testsExpected`, `testsUnexpected`, `testsFlaky`, `testsSkipped`, and `passRate` (0–100, `expected / (expected + unexpected) * 100`, `NaN`-guarded to `100` when no tests ran). `metricSpecs`: `passRate` is `higher-is-better`.
+- Screenshots themselves are **never** embedded in the report — only paths. The reporter's existing `maxFindingsPerCheck` truncation bounds report size for large suites.
+- Respect `ctx.signal`; Playwright runs are long and must abort cleanly with the tier timeout.
+
+**Acceptance criteria:**
+- [ ] `detect` reflects local availability; check skips gracefully (`status: 'skipped'`) when no Playwright config file exists even if the binary is present.
+- [ ] Failed and flaky tests map to findings with correct severity, location, message, and project-relative screenshot paths in `references`.
+- [ ] Exit 1 + valid JSON → `violations`; unparseable output → `error`.
+- [ ] Metrics and `passRate` populated; `metricSpecs` declared.
+- [ ] Every finding has a 64-char fingerprint (property test).
+
+**Tests required:**
+- [ ] Normalize fixture covering nested suites, `unexpected`, `flaky`, `skipped`, attachments with absolute paths, and a spec with multiple projects.
+- [ ] `FakeProcessRunner` tests for `detect`, happy path, exit-1-with-findings, and error path.
+- [ ] Property test for fingerprints.
+- [ ] **No real browsers in CI**: unit tests only; the E2E suite covers at most the graceful-skip path (Playwright absent), never a real `playwright test` run.
+
 ---
 
 ### Phase 6 — Adapters
@@ -1696,6 +1735,27 @@ Same pattern. Target file: `GEMINI.md`. Markers identical.
 - Idempotent: re-running with the same options returns `changed: false` and does not rewrite the file.
 - Rationale: embedding the full instructions in `CLAUDE.md` bloats every session's context and (as documented in T6.4) is risky on repositories whose docs mention the markers. A skill is loaded on demand by Claude Code instead.
 - `config.agents` (T1.1) accepts `'claude-code-skill'`, so `--agent=all` can be scoped to the skill adapter via config. The init wizard does not prompt for agents; it points users at `install-skill`.
+
+#### T6.6 — Skill template: visual verification section
+
+**Depends on:** T6.4, T5.11
+**Parallel-safe with:** none in phase 6 (touches the shared template)
+
+**Files:**
+- `packages/adapters/src/skill-template.md`
+- `packages/adapters/src/render.ts` (TEMPLATE_VERSION bump)
+- `packages/adapters/src/skill-template.test.ts`
+
+**Behavior:**
+- Add section **"8. Visual verification"** to the shared template: when a `playwright` check finding lists image paths in `references`, the agent must open those screenshots with its vision capabilities and confirm the rendered UI state *before* editing the test or the implementation. Error messages describe what failed; the screenshot shows what the user would actually see — trust the screenshot over assumptions.
+- Mention that trace files (`.zip`) in `references` can be inspected with `playwright show-trace <path>` when deeper debugging is needed.
+- Bump `TEMPLATE_VERSION` (content change rule from T6.4 applies; the version-bump lint test enforces it).
+- After merging, re-run `sentiness install-skill --agent=all` in this repo so the committed `.claude/skills/sentiness/SKILL.md` picks up the new section.
+
+**Acceptance criteria:**
+- [ ] Section present in rendered output for all adapters.
+- [ ] `TEMPLATE_VERSION` bumped; version-bump test passes.
+- [ ] Committed dogfooding skill regenerated.
 
 ---
 
