@@ -30,14 +30,29 @@ local machine has not installed every optional tool.
 
 ## Initialize A Target Project
 
-Use `init` to generate a config and local runtime paths:
+`sentiness init` is the one-command onboarding path. Interactively it detects your stack (package
+manager, TypeScript, test runner, Playwright config, existing agent instruction files) and walks
+you through everything with detection-driven defaults:
+
+- which checks to enable (recommended ones pre-selected);
+- installing the missing `@sentiness/check-*` packages and npm-installable tools through your
+  package manager, after showing you the exact command (osv-scanner and semgrep are not npm
+  packages; their install hints are printed instead);
+- installing AI agent instructions for the agents it detected (`.claude/`/`CLAUDE.md`,
+  `AGENTS.md`, `GEMINI.md`);
+- installing git hooks (pre-commit fast checks, pre-push slow checks);
+- creating the initial baseline.
+
+Non-interactively, each step has a flag:
 
 ```sh
 sentiness init --yes --checks=biome --no-baseline
+sentiness init --yes --checks=biome,knip --install --skill=claude-code-skill --hooks
 ```
 
-This non-interactive path enables only Biome and skips the initial baseline run. For a project with
-existing issues, initialize the baseline after confirming `doctor` is clean for the checks you want:
+The first form only writes config and runtime paths (nothing is installed without consent). For a
+project with existing issues, initialize the baseline after confirming `doctor` is clean for the
+checks you want:
 
 ```sh
 sentiness doctor

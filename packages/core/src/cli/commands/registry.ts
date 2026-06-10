@@ -70,6 +70,11 @@ export function registerCommands(cli: CAC, deps: CommandDeps): void {
     .option('--yes', 'Run non-interactively with default answers')
     .option('--checks <ids>', 'Comma-separated check ids to enable in non-interactive mode')
     .option('--no-baseline', 'Skip initial baseline creation')
+    .option('--install', 'Install missing check packages and npm tools without prompting')
+    .option('--no-install', 'Never install packages')
+    .option('--skill <agents>', 'Agents to install instructions for (comma-separated, or "none")')
+    .option('--hooks', 'Install git hooks (pre-commit and pre-push)')
+    .option('--no-hooks', 'Skip git hook installation')
     .action(wrap(initCommand, deps));
 
   cli
@@ -79,7 +84,7 @@ export function registerCommands(cli: CAC, deps: CommandDeps): void {
 
   cli
     .command('install-skill', 'Install managed Sentiness instructions for an AI agent')
-    .option('--agent <agent>', 'claude-code, codex, gemini, or all')
+    .option('--agent <agent>', 'claude-code, claude-code-skill, codex, gemini, or all')
     .action(wrap(installSkillCommand, deps));
 
   cli

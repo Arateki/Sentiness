@@ -514,10 +514,20 @@ a built-CLI smoke test against a file quoting the markers inline.
 
 ## Recommended next steps
 
-The previously tracked items are all done (see the dated sections below). The backlog is currently
-empty; new work should start from a fresh task spec in `CLAUDE.md`.
+The previously tracked items are all done (see the dated sections below). Current work: npm
+publication (MIT license, metadata, GitHub remote — decided 2026-06-10).
 
 Recently completed:
+
+0. *(done 2026-06-10)* **One-command onboarding (T4.4)** — `sentiness init` now detects the stack
+   (package manager, TS, test runner, Playwright, agent instruction files), recommends checks
+   accordingly, lists all 11 checks (playwright was missing from the wizard), installs missing
+   `@sentiness/check-*` packages and npm tools through the detected package manager **with
+   consent** (exact command shown; failure warns and continues), installs agent instructions for
+   detected agents, offers git hooks, then the baseline. New flags: `--install/--no-install`,
+   `--skill=<agents|none>`, `--hooks/--no-hooks`. The legacy non-interactive contract
+   (`--yes --checks=… --no-baseline`) is unchanged. Selected agents are recorded in
+   `config.agents`.
 
 1. *(done 2026-06-10)* **Playwright visual-feedback check** — implemented per `CLAUDE.md` T5.11
    (`@sentiness/check-playwright`, slow tier, screenshot/trace paths in `Finding.references`,

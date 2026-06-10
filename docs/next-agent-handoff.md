@@ -36,10 +36,14 @@ pnpm sentiness check --tier=fast --compact   # summary.status: ok
 
 See the numbered list at the end of `docs/progress.md`. In priority order:
 
-The backlog is empty. T5.11 (`@sentiness/check-playwright`) and T6.6 (skill template
-"Visual Verification" section, TEMPLATE_VERSION 1.2) are implemented and committed; the
-dogfooding skill at `.claude/skills/sentiness/SKILL.md` is regenerated. New work should start
-from a fresh task spec in `CLAUDE.md` (per §13, ask the human rather than inventing scope).
+Current work: **npm publication** (decided 2026-06-10 with the human): MIT license, metadata
+(`license`/`description`/`repository`) across the 14 public manifests, root LICENSE file, GitHub
+repository creation + remote, then `pnpm -r publish --access public` after the human runs
+`npm login` and creates the `@sentiness` org (scope verified free on npm).
+
+Done recently: T4.4 one-command onboarding (`sentiness init` detects, recommends, installs with
+consent, installs skills/hooks — see `docs/progress.md`); T5.11 (`@sentiness/check-playwright`)
+and T6.6 (skill template "Visual Verification", TEMPLATE_VERSION 1.2).
 
 Done after this handoff was first written: `config.agents` accepts `'claude-code-skill'`
 (2026-06-09); the managed-section writer only matches full-line markers, closing the root cause

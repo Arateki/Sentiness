@@ -1427,6 +1427,58 @@ sentiness doctor            # diagnose missing tools / config issues
 
 ---
 
+#### T4.4 — One-command onboarding
+
+**Depends on:** T4.1, T4.2, T4.3, T1.7, T6.*
+**Blocks:** none
+**Parallel-safe with:** none in phase 4 (rewrites the init flow)
+
+**Files:**
+- `packages/core/src/cli/commands/init.ts` (orchestration only)
+- `packages/core/src/cli/commands/init-plan.ts` / `init-plan.test.ts` (pure detection → recommendation helper)
+- `packages/core/src/cli/commands/init-steps.ts` (package install / skill / hooks steps)
+- `packages/core/src/cli/commands/init.test.ts`
+- `packages/core/src/cli/commands/registry.ts` (new flags)
+- `docs/getting-started.md`
+
+**Goal.** `sentiness init` becomes the single onboarding command: detect the project's stack, recommend the checks that fit it, install the missing `@sentiness/check-*` packages and npm-installable external tools **with consent**, install agent instructions for detected agents, offer git hooks, then offer the baseline. A new user should go from zero to a working quality gate with one command and a few Enter presses.
+
+**Behavior:**
+
+1. **Detection drives recommendation.** Reuse T1.7 metadata plus filesystem probes; each detection flips a check's recommended default:
+   - `biome.json`/`biome.jsonc` present, or no other linter detected → `biome` on.
+   - `vitest`/`jest` in deps → `coverage` and `stryker` on.
+   - `playwright.config.{ts,js,mjs,cjs}` present or `@playwright/test` in deps → `playwright` on.
+   - `deps-diff` on by default always (needs only git, costs nothing).
+   - `knip` on by default (as today). Everything else defaults off.
+   - The wizard's check list must include **all** implemented checks (`playwright` is currently missing from it — fix that here).
+2. **Consensual package installation.** After check selection, compute what is missing from `package.json` deps: the `@sentiness/check-<id>` package for each enabled check, plus the npm-installable external tool (`biome`→`@biomejs/biome`, `knip`→`knip`, `stryker`→`@stryker-mutator/core`, `dependency-cruiser`→`dependency-cruiser`, `lockfile-lint`→`lockfile-lint`, `jscpd`→`jscpd`, `playwright`→`@playwright/test`). `osv-scanner` and `semgrep` are not npm packages — print the doctor-style install hint instead. Show the exact command (`<pm> add -D <pkgs…>` with the detected package manager), ask for consent, run it through the injected `ProcessRunner`. A failed install warns and continues; it never aborts init.
+3. **Agent instructions in the same flow.** Detect agents (`.claude/` or `CLAUDE.md` → `claude-code-skill`; `AGENTS.md` → `codex`; `GEMINI.md` → `gemini`; none → offer `claude-code-skill` as default) and offer to run the install-skill flow for them.
+4. **Hooks.** Offer `install-hooks` (default yes when the project is a git repo).
+5. **Baseline last**, after packages and tool configs exist (as today).
+6. **Non-interactive contract.** `--yes` keeps today's semantics (no package install unless asked). New flags: `--install` / `--no-install`, `--skill=<agent[,agent]|none>`, `--hooks` / `--no-hooks`. The existing E2E invocation `init --yes --checks=biome --no-baseline` must keep working unchanged.
+
+**Implementation notes:**
+- Use `deps.processRunner` for the package-manager call; never `child_process` directly. The package manager comes from T1.7 detection (`pnpm`/`npm`/`yarn`; `unknown` → skip install with a warning).
+- The skill step reuses `installSkillCommand` through the same `CommandDeps`; do not duplicate adapter logic.
+- Keep `init.ts` under control: extract detection/recommendation into a pure helper that is unit-testable without prompts.
+
+**Acceptance criteria:**
+- [ ] Wizard lists all 11 checks with detection-driven defaults.
+- [ ] Consent prompt shows the exact install command; accepted installs run through `ProcessRunner`; refusal skips cleanly.
+- [ ] Failed installs warn and continue.
+- [ ] Detected agents are offered and installed via the adapters registry.
+- [ ] Hooks offered; baseline still last.
+- [ ] `init --yes --checks=biome --no-baseline` behaves exactly as before (E2E green without changes to that test's assertions).
+
+**Tests required:**
+- [ ] Unit tests for the recommendation helper (each detection branch).
+- [ ] `FakeProcessRunner` test asserting the exact `<pm> add -D …` invocation and the refusal path.
+- [ ] Failed-install path (non-zero exit) warns and continues.
+- [ ] Non-interactive flag matrix (`--install`, `--skill`, `--hooks`).
+
+---
+
 ### Phase 5 — Checks
 
 > **Fully parallel-safe.** Each check is its own package; they touch disjoint files. Pick one and go.

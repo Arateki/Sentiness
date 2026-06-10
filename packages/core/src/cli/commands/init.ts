@@ -1,7 +1,13 @@
 import { isAbsolute, join } from 'node:path';
-import { detectPackageMetadata } from '../../package-metadata/package-metadata.js';
 import { Prompter } from '../wizard/prompts.js';
 import { baselineInitCommand } from './baseline.js';
+import { buildOnboardingPlan } from './init-plan.js';
+import {
+  installAgentSkills,
+  installGitHooks,
+  installMissingPackages,
+  parseAgentSelection,
+} from './init-steps.js';
 import type { CommandDeps, ParsedArgs } from './types.js';
 
 function resolvePath(cwd: string, path: string): string {
@@ -113,102 +119,50 @@ export async function initCommand(args: ParsedArgs, deps: CommandDeps): Promise<
       }
     }
 
-    const metadata = await detectPackageMetadata(deps.cwd, deps.fs);
-    const hasVitest = 'vitest' in metadata.devDependencies || 'vitest' in metadata.dependencies;
-    const hasJest = 'jest' in metadata.devDependencies || 'jest' in metadata.dependencies;
-    const hasTs = 'typescript' in metadata.devDependencies || 'typescript' in metadata.dependencies;
+    const plan = await buildOnboardingPlan(deps.cwd, deps.fs);
+    deps.logger.info(`Detected Package Manager: ${plan.packageManager}`);
+    deps.logger.info(`Detected TypeScript: ${plan.hasTypescript ? 'yes' : 'no'}`);
+    deps.logger.info(`Detected Test Runner: ${plan.testRunner}`);
+    if (plan.detectedAgents.length > 0) {
+      deps.logger.info(`Detected AI agents: ${plan.detectedAgents.join(', ')}`);
+    }
 
     const checks: Record<string, unknown> = {};
-
-    deps.logger.info(`Detected Package Manager: ${metadata.packageManager}`);
-    deps.logger.info(`Detected TypeScript: ${hasTs ? 'yes' : 'no'}`);
-    deps.logger.info(`Detected Test Runner: ${hasVitest ? 'vitest' : hasJest ? 'jest' : 'none'}`);
-
-    const knownChecks = [
-      {
-        id: 'biome',
-        label: 'Biome check (fast lint & format)',
-        tier: 'fast',
-        defaultEnabled: true,
-      },
-      {
-        id: 'knip',
-        label: 'Knip check (unused code/dependencies)',
-        tier: 'standard',
-        defaultEnabled: true,
-      },
-      {
-        id: 'coverage',
-        label: 'Coverage check (Istanbul coverage report)',
-        tier: 'slow',
-        defaultEnabled: true,
-      },
-      {
-        id: 'stryker',
-        label: 'Stryker check (mutation testing)',
-        tier: 'slow',
-        defaultEnabled: true,
-      },
-      {
-        id: 'deps-diff',
-        label: 'Dependency diff check (package.json changes)',
-        tier: 'fast',
-        defaultEnabled: false,
-      },
-      {
-        id: 'dependency-cruiser',
-        label: 'Dependency Cruiser check (architecture rules)',
-        tier: 'standard',
-        defaultEnabled: false,
-      },
-      {
-        id: 'lockfile-lint',
-        label: 'Lockfile Lint check (lockfile security policy)',
-        tier: 'standard',
-        defaultEnabled: false,
-      },
-      {
-        id: 'jscpd',
-        label: 'jscpd check (code duplication)',
-        tier: 'standard',
-        defaultEnabled: false,
-      },
-      {
-        id: 'osv-scanner',
-        label: 'OSV Scanner check (dependency vulnerabilities)',
-        tier: 'slow',
-        defaultEnabled: false,
-      },
-      {
-        id: 'semgrep',
-        label: 'Semgrep check (security rules)',
-        tier: 'slow',
-        defaultEnabled: false,
-      },
-    ] as const;
-
-    for (const check of knownChecks) {
+    for (const check of plan.checks) {
       const enabled = await confirm(
         `Enable ${check.label}?`,
-        check.defaultEnabled,
-        selectedChecks ? selectedChecks.has(check.id) : check.defaultEnabled,
+        check.recommended,
+        selectedChecks ? selectedChecks.has(check.id) : check.recommended,
       );
-      if (enabled) {
-        const checkConfig: Record<string, unknown> = { enabled: true, tier: check.tier };
-        if (check.id === 'stryker' && prompter) {
-          const shouldAskReportPath = await shouldPromptForStrykerReportPath(deps.cwd, deps.fs);
-          if (shouldAskReportPath) {
-            const reportPath = await prompter.ask(
-              'Stryker JSON report path',
-              'reports/mutation/mutation.json',
-            );
-            if (reportPath.trim().length > 0) {
-              checkConfig.reportPath = reportPath.trim();
-            }
+      if (!enabled) {
+        continue;
+      }
+      const checkConfig: Record<string, unknown> = { enabled: true, tier: check.tier };
+      if (check.id === 'stryker' && prompter) {
+        if (await shouldPromptForStrykerReportPath(deps.cwd, deps.fs)) {
+          const reportPath = await prompter.ask(
+            'Stryker JSON report path',
+            'reports/mutation/mutation.json',
+          );
+          if (reportPath.trim().length > 0) {
+            checkConfig.reportPath = reportPath.trim();
           }
         }
-        checks[check.id] = checkConfig;
       }
+      checks[check.id] = checkConfig;
+    }
+
+    let agents: readonly string[];
+    if (isNonInteractive || args.skill !== undefined) {
+      agents = parseAgentSelection(args.skill, deps.logger);
+    } else {
+      const candidates =
+        plan.detectedAgents.length > 0 ? plan.detectedAgents : ['claude-code-skill'];
+      const wanted = await confirm(
+        `Install AI agent instructions for: ${candidates.join(', ')}?`,
+        true,
+      );
+      agents = wanted ? candidates : [];
     }
 
     const config = {
@@ -222,17 +176,16 @@ export async function initCommand(args: ParsedArgs, deps: CommandDeps): Promise<
       baseline: { path: '.sentiness/baseline.json' },
       pending: { path: '.sentiness/pending-feedback.json' },
       reporting: { compact: false, omitOk: true, warningsAreErrors: false },
+      ...(agents.length > 0 ? { agents } : {}),
     };
 
     await deps.fs.writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`);
     deps.logger.info(`Created ${configPath}`);
 
-    // Create .sentiness directory structure
     const sentinessDir = resolvePath(deps.cwd, '.sentiness');
     await deps.fs.mkdir(join(sentinessDir, 'jobs'), { recursive: true });
     await deps.fs.mkdir(join(sentinessDir, 'cache'), { recursive: true });
 
-    // Update .gitignore
     const gitignorePath = resolvePath(deps.cwd, '.gitignore');
     if (await deps.fs.exists(gitignorePath)) {
       const current = await deps.fs.readFile(gitignorePath);
@@ -247,9 +200,27 @@ export async function initCommand(args: ParsedArgs, deps: CommandDeps): Promise<
       deps.logger.info('Created .gitignore with .sentiness/ ignores');
     }
 
-    deps.logger.info(
-      '\nRun `sentiness install-skill --agent=<name>` to install managed AI agent instructions.',
+    await installMissingPackages(
+      plan,
+      Object.keys(checks),
+      async (command) =>
+        confirm(`Install missing packages? (${command})`, true, args.install === true),
+      deps,
     );
+
+    await installAgentSkills(agents, deps);
+
+    const wantHooks =
+      isNonInteractive || args.hooks !== undefined
+        ? args.hooks === true
+        : (await deps.git.isRepo(deps.cwd)) &&
+          (await confirm(
+            'Install git hooks? (pre-commit fast checks, pre-push slow checks)',
+            true,
+          ));
+    if (wantHooks) {
+      await installGitHooks(args, deps);
+    }
 
     const runBaseline = await confirm(
       '\nCreate initial baseline now? (recommended for existing projects)',
