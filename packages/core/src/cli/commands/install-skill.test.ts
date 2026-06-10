@@ -8,6 +8,7 @@ import type { AgentAdapter, RenderOptions } from '@sentiness/adapters';
 import type { ProcessRunner } from '@sentiness/check-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_CONFIG } from '../../config/config.js';
+import { SENTINESS_VERSION } from '../../version.js';
 import { installSkillCommand } from './install-skill.js';
 import type { CommandDeps } from './types.js';
 
@@ -62,7 +63,9 @@ describe('installSkillCommand', () => {
     const exitCode = await installSkillCommand({ agent: 'codex' }, deps);
 
     expect(exitCode).toBe(0);
-    expect(await fs.readFile('/project/AGENTS.md')).toContain('codex:0.1.0:sentiness.config.json');
+    expect(await fs.readFile('/project/AGENTS.md')).toContain(
+      `codex:${SENTINESS_VERSION}:sentiness.config.json`,
+    );
     expect(deps.stdout.write).toHaveBeenCalledWith(
       `${JSON.stringify(
         {
