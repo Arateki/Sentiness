@@ -54,6 +54,7 @@ describe('renderSkill', () => {
       '### 5. Hard Rules',
       '### 6. Background Polling Protocol',
       '### 7. Adding Dependencies',
+      '### 8. Visual Verification',
     ];
 
     let previousIndex = -1;

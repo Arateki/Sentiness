@@ -63,3 +63,7 @@ When a slow check is running in the background, poll with exponential backoff: s
 ### 7. Adding Dependencies
 
 If `context.addedDependencies` is non-empty in the report, mention each added dependency in the final task summary so the human can review it.
+
+### 8. Visual Verification
+
+When a `playwright` check finding lists image paths in `references`, open those screenshots with your vision capabilities and confirm the rendered UI state before editing the test or the implementation. The error message describes what failed; the screenshot shows what the user would actually see — trust the screenshot over assumptions. Trace files (`.zip`) listed in `references` can be inspected with `playwright show-trace <path>` when deeper debugging is needed.

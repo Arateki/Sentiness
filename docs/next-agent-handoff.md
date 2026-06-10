@@ -36,9 +36,10 @@ pnpm sentiness check --tier=fast --compact   # summary.status: ok
 
 See the numbered list at the end of `docs/progress.md`. In priority order:
 
-1. Implement the Playwright visual-feedback check — spec is written: `CLAUDE.md` **T5.11**
-   (check package) and **T6.6** (skill template "Visual verification" section + TEMPLATE_VERSION
-   bump). Implement T5.11 first, then T6.6.
+The backlog is empty. T5.11 (`@sentiness/check-playwright`) and T6.6 (skill template
+"Visual Verification" section, TEMPLATE_VERSION 1.2) are implemented and committed; the
+dogfooding skill at `.claude/skills/sentiness/SKILL.md` is regenerated. New work should start
+from a fresh task spec in `CLAUDE.md` (per §13, ask the human rather than inventing scope).
 
 Done after this handoff was first written: `config.agents` accepts `'claude-code-skill'`
 (2026-06-09); the managed-section writer only matches full-line markers, closing the root cause

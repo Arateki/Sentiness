@@ -514,14 +514,15 @@ a built-CLI smoke test against a file quoting the markers inline.
 
 ## Recommended next steps
 
-1. **Playwright visual-feedback check — spec written, ready to implement**
-   - Full spec lives in `CLAUDE.md` as **T5.11** (the check: runs `playwright test --reporter=json`
-     in the slow tier, maps `unexpected`/`flaky` tests to findings, exposes screenshot/trace paths
-     through the existing `Finding.references` field — no SDK change) and **T6.6** (skill template
-     gains a "Visual verification" section instructing agents to open referenced screenshots with
-     vision capabilities; requires a `TEMPLATE_VERSION` bump and regenerating the committed
-     dogfooding skill). Implement T5.11 first, then T6.6.
+The previously tracked items are all done (see the dated sections below). The backlog is currently
+empty; new work should start from a fresh task spec in `CLAUDE.md`.
 
+Recently completed:
+
+1. *(done 2026-06-10)* **Playwright visual-feedback check** — implemented per `CLAUDE.md` T5.11
+   (`@sentiness/check-playwright`, slow tier, screenshot/trace paths in `Finding.references`,
+   `passRate` metric, 14 public release packages now) and T6.6 (skill template section
+   "8. Visual Verification", `TEMPLATE_VERSION` 1.2, committed dogfooding skill regenerated).
 2. *(resolved 2026-06-10 — see "Local binary resolution" below)*
 
 ## How to resume safely
