@@ -70,11 +70,11 @@ export function registerCommands(cli: CAC, deps: CommandDeps): void {
     .option('--yes', 'Run non-interactively with default answers')
     .option('--checks <ids>', 'Comma-separated check ids to enable in non-interactive mode')
     .option('--no-baseline', 'Skip initial baseline creation')
+    // Note: do not register --no-install / --no-hooks variants — cac would
+    // then default install/hooks to true, breaking the --yes contract.
     .option('--install', 'Install missing check packages and npm tools without prompting')
-    .option('--no-install', 'Never install packages')
     .option('--skill <agents>', 'Agents to install instructions for (comma-separated, or "none")')
     .option('--hooks', 'Install git hooks (pre-commit and pre-push)')
-    .option('--no-hooks', 'Skip git hook installation')
     .action(wrap(initCommand, deps));
 
   cli

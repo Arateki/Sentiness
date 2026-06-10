@@ -1,4 +1,5 @@
 import { execFile, spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -568,6 +569,15 @@ describe('Sentiness CLI E2E full flow', () => {
     expect(config.reporting.omitOk).toBe(true);
     expect(gitignore).toContain('.sentiness/jobs/');
     expect(gitignore).toContain('.sentiness/pending-feedback.json');
+
+    // --yes without --install/--skill/--hooks must not install anything:
+    // registering --no-* variants in cac silently defaults these flags to
+    // true, which this assertion guards against (real regression).
+    expect(config.agents).toBeUndefined();
+    expect(existsSync(join(projectDir, '.claude'))).toBe(false);
+    expect(existsSync(join(projectDir, '.git/hooks/pre-commit'))).toBe(false);
+    const packageJson = JSON.parse(await readFile(join(projectDir, 'package.json'), 'utf8'));
+    expect(Object.keys(packageJson.devDependencies)).not.toContain('knip');
   });
 
   it('installs agent instruction sections idempotently from the built CLI', async () => {
