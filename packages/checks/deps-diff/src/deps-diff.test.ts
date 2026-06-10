@@ -167,6 +167,72 @@ describe('depsDiffCheck', () => {
     expect(ruleIds).not.toContain('new-transitive-dependency');
   });
 
+  it('reports transitive changes from pnpm-lock.yaml', async () => {
+    const pkg = JSON.stringify({ dependencies: { foo: '^1.0.0' } });
+    const currentLock = [
+      "lockfileVersion: '9.0'",
+      '',
+      'packages:',
+      '',
+      '  foo@1.0.0:',
+      '    resolution: {integrity: sha512-aaa}',
+      '',
+      '  leftpad@3.0.0:',
+      '    resolution: {integrity: sha512-bbb}',
+      '',
+    ].join('\n');
+    const baseLock = [
+      "lockfileVersion: '9.0'",
+      '',
+      'packages:',
+      '',
+      '  foo@1.0.0:',
+      '    resolution: {integrity: sha512-aaa}',
+      '',
+      '  leftpad@2.0.0:',
+      '    resolution: {integrity: sha512-ccc}',
+      '',
+    ].join('\n');
+    const fs = new InMemoryFileSystem({
+      '/project/package.json': pkg,
+      '/project/pnpm-lock.yaml': currentLock,
+    });
+    const git = new InMemoryGitProvider();
+    git.files.set('main:package.json', pkg);
+    git.files.set('main:pnpm-lock.yaml', baseLock);
+
+    const result = await depsDiffCheck.run(context(fs, git));
+
+    expect(result.metrics?.transitiveDiffAvailable).toBe(true);
+    const bump = result.findings.find(
+      (finding) => finding.ruleId === 'major-version-bump-transitive',
+    );
+    expect(bump?.location).toMatchObject({ file: 'pnpm-lock.yaml', packageName: 'leftpad' });
+  });
+
+  it('reports transitive changes from yarn.lock', async () => {
+    const pkg = JSON.stringify({ dependencies: { foo: '^1.0.0' } });
+    const currentLock = 'foo@^1.0.0:\n  version "1.0.0"\n\nleftpad@^3.0.0:\n  version "3.0.0"\n';
+    const baseLock = 'foo@^1.0.0:\n  version "1.0.0"\n';
+    const fs = new InMemoryFileSystem({
+      '/project/package.json': pkg,
+      '/project/yarn.lock': currentLock,
+    });
+    const git = new InMemoryGitProvider();
+    git.files.set('main:package.json', pkg);
+    git.files.set('main:yarn.lock', baseLock);
+
+    const result = await depsDiffCheck.run(context(fs, git));
+
+    expect(result.metrics?.transitiveDiffAvailable).toBe(true);
+    const added = result.findings.find((finding) => finding.ruleId === 'new-transitive-dependency');
+    expect(added?.location).toMatchObject({
+      file: 'yarn.lock',
+      packageName: 'leftpad',
+      packageVersion: '3.0.0',
+    });
+  });
+
   it('keeps transitiveDiffAvailable false when the lockfile is absent', async () => {
     const fs = new InMemoryFileSystem({
       '/project/package.json': JSON.stringify({ dependencies: { foo: '^1.0.0' } }),

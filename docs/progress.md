@@ -59,8 +59,9 @@ The implementation should progress in usable slices, not by completing the whole
      `deps-diff` check now flips `transitiveDiffAvailable: true` and surfaces `info`-severity
      `new-transitive-dependency`, `removed-transitive-dependency`, and
      `major-version-bump-transitive` findings whenever both base and current
-     `package-lock.json`/`npm-shrinkwrap.json` files parse successfully. pnpm and Yarn lockfiles
-     remain skipped pending dedicated parsers.
+     `package-lock.json`/`npm-shrinkwrap.json` files parse successfully. (Update 2026-06-10:
+     `pnpm-lock.yaml` v5/v6/v9 and `yarn.lock` classic/berry parsers landed too — see the check
+     package gaps section.)
 
 10. **Phase J - Tool-config validation and bootstrap**
     - Goal: surface missing tool-level config files (e.g. `stryker.conf.json`) in `doctor` and
@@ -430,10 +431,12 @@ The final `sentiness check` report returned `summary.status: "ok"` with no findi
 
 ### Check package gaps
 
-- `deps-diff` now parses `package-lock.json` / `npm-shrinkwrap.json` and surfaces transitive
-  changes; `metrics.transitiveDiffAvailable` is `true` whenever both base and current lockfiles
-  parse. `pnpm-lock.yaml` and `yarn.lock` are still unsupported and keep
-  `transitiveDiffAvailable: false`.
+- `deps-diff` parses `pnpm-lock.yaml` (lockfile versions 5.x/6.x/9.x, line-based in-tree parser,
+  no YAML dependency), `package-lock.json` / `npm-shrinkwrap.json`, and `yarn.lock` (classic v1
+  and berry). `metrics.transitiveDiffAvailable` is `true` whenever both base and current lockfiles
+  parse; candidates are tried in the T1.7 detection order (pnpm → npm → yarn). Lockfiles with no
+  dependencies (no `packages:` section / no version blocks) parse as `undefined` and fall through
+  to the next candidate.
 - `lockfile-lint` skips pnpm-only projects because lockfile-lint does not support `pnpm-lock.yaml`.
 - External-tool checks rely on the target project having the corresponding CLI installed; `doctor`
   reports missing tools and install guidance.
@@ -477,22 +480,17 @@ a built-CLI smoke test against a file quoting the markers inline.
 
 ## Recommended next steps
 
-1. **pnpm and Yarn lockfile parsers**
-   - Extend `@sentiness/check-deps-diff` with parsers for `pnpm-lock.yaml` (YAML, requires a
-     dependency or a careful in-tree subset) and `yarn.lock` v1/v2. Goal: `transitiveDiffAvailable`
-     is `true` for any supported lockfile, not only npm.
-
-2. **Hunk-level diff for adapter-defined locations**
+1. **Hunk-level diff for adapter-defined locations**
    - Some checks emit findings without a `location.startLine` (notably dependency, package, and
      repository-level findings). Those still fall back to file-level diff matching. Decide whether
      specific check categories should be exempt from `--diff` filtering altogether or always
      attached to the changed file set.
 
-3. **`configFiles` + `defaultConfig` for more checks** (carried over from Phase J)
+2. **`configFiles` + `defaultConfig` for more checks** (carried over from Phase J)
    - Extend the pattern to `dependency-cruiser`, `jscpd`, and `semgrep`; cover `init-config` and
      `doctor` config validation with E2E tests against the demo project.
 
-4. **Playwright visual-feedback check (idea raised 2026-06-10)**
+3. **Playwright visual-feedback check (idea raised 2026-06-10)**
    - Proposed: a `@sentiness/check-playwright` (slow tier) that detects Playwright, runs the
      target project's E2E suite, and surfaces failed tests plus the paths of generated
      screenshots/traces as findings and metrics, so multimodal agents can inspect UI state with
@@ -500,7 +498,7 @@ a built-CLI smoke test against a file quoting the markers inline.
      reported screenshot paths. Not designed yet — needs a spec for artifact paths in the report
      contract, report-size discipline, and `examples/demo-project` coverage.
 
-5. **Resolve project-local tool binaries in `detect`/`run`**
+4. **Resolve project-local tool binaries in `detect`/`run`**
    - Invoking the CLI directly (`node packages/core/dist/cli/index.js check --tier=fast`) skips
      the Biome check with `spawn biome ENOENT` even though Biome is installed, because
      `execFile` does not see `node_modules/.bin` on PATH; running through `pnpm sentiness ...`

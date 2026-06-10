@@ -36,13 +36,14 @@ pnpm sentiness check --tier=fast --compact   # summary.status: ok
 
 See the numbered list at the end of `docs/progress.md`. In priority order:
 
-1. pnpm/Yarn lockfile parsers for `@sentiness/check-deps-diff`.
-2. Hunk-level diff policy for findings without line locations.
-3. `configFiles`/`defaultConfig` for dependency-cruiser, jscpd, and semgrep, with E2E coverage.
+1. Hunk-level diff policy for findings without line locations.
+2. `configFiles`/`defaultConfig` for dependency-cruiser, jscpd, and semgrep, with E2E coverage.
+3. Playwright visual-feedback check (spec first — see `docs/progress.md` item 3).
 4. Resolve project-local tool binaries (`node_modules/.bin`) in `detect`/`run`.
 
 Done after this handoff was first written: `config.agents` accepts `'claude-code-skill'`
 (2026-06-09); the managed-section writer only matches full-line markers, closing the root cause
-of the CLAUDE.md corruption incident (2026-06-10).
+of the CLAUDE.md corruption incident (2026-06-10); `deps-diff` now parses `pnpm-lock.yaml`
+(v5/v6/v9) and `yarn.lock` (classic/berry) for transitive diffs (2026-06-10).
 
 Each item is one task: one branch, one PR, per `CLAUDE.md` §3.9.

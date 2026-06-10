@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { parsePnpmLockfile } from './pnpm-lockfile.js';
+import { parseYarnLockfile } from './yarn-lockfile.js';
 
 type LockfileKind = 'package-lock' | 'pnpm-lock' | 'yarn-lock';
 
@@ -79,15 +81,21 @@ export type DetectedLockfile = {
   readonly path: string;
 };
 
+// Candidate order mirrors the package-manager detection order in core (T1.7):
+// pnpm first, then npm/shrinkwrap, then Yarn.
 export const SUPPORTED_LOCKFILES: readonly DetectedLockfile[] = [
+  { kind: 'pnpm-lock', path: 'pnpm-lock.yaml' },
   { kind: 'package-lock', path: 'package-lock.json' },
   { kind: 'package-lock', path: 'npm-shrinkwrap.json' },
+  { kind: 'yarn-lock', path: 'yarn.lock' },
 ];
 
 export function parseLockfile(kind: LockfileKind, content: string): LockfilePackages | undefined {
   if (kind === 'package-lock') {
     return parseNpmLockfile(content);
   }
-  // pnpm-lock and yarn-lock parsers are not implemented yet.
-  return undefined;
+  if (kind === 'pnpm-lock') {
+    return parsePnpmLockfile(content);
+  }
+  return parseYarnLockfile(content);
 }
