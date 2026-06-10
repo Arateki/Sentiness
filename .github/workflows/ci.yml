@@ -10,19 +10,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Enable Corepack
         run: corepack enable
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      # Workspace packages resolve each other through dist/ (exports point at
+      # built artifacts), so everything below needs a build on a clean runner.
+      - name: Build
+        run: pnpm build
 
       - name: Lint
         run: pnpm lint
