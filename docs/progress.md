@@ -1,6 +1,6 @@
 # Sentiness implementation handoff
 
-Last updated: 2026-04-30
+Last updated: 2026-06-09
 
 This document is a working handoff for continuing the implementation. The canonical product specification is still `CLAUDE.md`; this file records the practical phase approach, what has already landed, what is partial, and what should happen next.
 
@@ -73,6 +73,20 @@ The implementation should progress in usable slices, not by completing the whole
       template idempotently. Knip's v6 per-file `issues[]` shape is now correctly normalized; a
       project-level `knip.json` documents dynamic-import workspaces (`@sentiness/check-*`) and
       demo-project entrypoints. `pending` and `init-config` are also now covered by unit tests.
+
+11. **Phase K - Claude Code discoverable skill adapter**
+    - Goal: install the agent instructions as a Claude Code skill (`.claude/skills/sentiness/SKILL.md`)
+      so they load on demand instead of occupying every session's context via `CLAUDE.md`.
+    - Scope: new `claude-code-skill` agent in `@sentiness/adapters` (`claudeCodeSkillAdapter`),
+      `AgentName` extended, `AgentAdapter.targetFile` relaxed to `string`, `install-skill` CLI and
+      E2E updated to cover the fourth adapter.
+    - Status: **done** (committed 2026-06-09). The adapter writes a whole-file skill with YAML
+      frontmatter (no managed markers), is idempotent, and `install-skill --agent=all` now returns
+      four results. The generated `.claude/skills/sentiness/SKILL.md` is committed in this repo as
+      dogfooding. All gates pass: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm test:e2e`
+      (13/13).
+    - Known follow-up: `config.agents` in `packages/core/src/config/config.ts` still only accepts
+      `'claude-code' | 'codex' | 'gemini'`; the init wizard cannot select the skill adapter yet.
 
 ## Sprint corretivo (2026-04-28 / 2026-04-29)
 
@@ -433,18 +447,55 @@ The final `sentiness check` report returned `summary.status: "ok"` with no findi
 - E2E full-flow suite exists for `doctor`, `check`, blocking findings, background status/result/pending feedback/ack, baseline init suppression, baseline `update`/`accept`/`prune`, `install-hooks` including direct-hook idempotency/error cases, non-interactive `init`, `install-skill`, and the generated report schema artifact.
 - Unit/property coverage now includes runtime package-version derivation, baseline/diff idempotency, deeper public report-schema artifact validation, and public docs CLI example validation.
 
+## Dogfooding incident: CLAUDE.md corruption (fixed 2026-06-09)
+
+Running `install-skill --agent=claude-code` against this repository corrupted `CLAUDE.md` (commit
+`00cce0a`): the spec quoted the literal `sentiness:start` / `sentiness:end` HTML-comment markers in
+inline code, and the managed-section writer matched the first quoted pair, injecting the rendered
+template into the middle of section T6.4.
+
+Fix applied: the injected block was removed, every literal marker occurrence in `CLAUDE.md` was
+rewritten to name the markers without their HTML-comment framing, T6.4/T6.1/T6.2 specs were
+updated to match the implemented adapter surface (including `claude-code-skill`), and a new T6.5
+spec documents the skill adapter. `docs/agent-skill.md` now warns that managed files must never
+quote the literal markers.
+
+Product follow-up worth considering: make the writer only match markers that occupy an entire line
+(e.g. `^<marker>$`), which would have ignored the inline-code occurrence. This is a behavior change
+to `@sentiness/adapters` and deserves its own task/branch.
+
 ## Recommended next steps
 
-1. **pnpm and Yarn lockfile parsers**
+1. **Extend `config.agents` with `'claude-code-skill'`**
+   - Update the Zod enum in `packages/core/src/config/config.ts` and the init wizard so the skill
+     adapter can be selected during onboarding, then mirror the change in the T1.1 config shape in
+     `CLAUDE.md`.
+
+2. **Marker matching robustness in `@sentiness/adapters`**
+   - Match managed markers only when they occupy an entire line, so marker text quoted inline in
+     documentation can never be replaced (see the dogfooding incident above).
+
+3. **pnpm and Yarn lockfile parsers**
    - Extend `@sentiness/check-deps-diff` with parsers for `pnpm-lock.yaml` (YAML, requires a
      dependency or a careful in-tree subset) and `yarn.lock` v1/v2. Goal: `transitiveDiffAvailable`
      is `true` for any supported lockfile, not only npm.
 
-2. **Hunk-level diff for adapter-defined locations**
+4. **Hunk-level diff for adapter-defined locations**
    - Some checks emit findings without a `location.startLine` (notably dependency, package, and
      repository-level findings). Those still fall back to file-level diff matching. Decide whether
      specific check categories should be exempt from `--diff` filtering altogether or always
      attached to the changed file set.
+
+5. **`configFiles` + `defaultConfig` for more checks** (carried over from Phase J)
+   - Extend the pattern to `dependency-cruiser`, `jscpd`, and `semgrep`; cover `init-config` and
+     `doctor` config validation with E2E tests against the demo project.
+
+6. **Resolve project-local tool binaries in `detect`/`run`**
+   - Invoking the CLI directly (`node packages/core/dist/cli/index.js check --tier=fast`) skips
+     the Biome check with `spawn biome ENOENT` even though Biome is installed, because
+     `execFile` does not see `node_modules/.bin` on PATH; running through `pnpm sentiness ...`
+     works. Checks (or the `ProcessRunner`) should resolve binaries from the target project's
+     `node_modules/.bin` before falling back to PATH.
 
 ## How to resume safely
 

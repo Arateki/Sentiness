@@ -7,9 +7,14 @@ which Sentiness commands to run, which files are protected, and how to handle ba
 
 | Agent | Target file |
 |---|---|
-| Claude Code | `CLAUDE.md` |
+| Claude Code (managed section) | `CLAUDE.md` |
+| Claude Code (discoverable skill) | `.claude/skills/sentiness/SKILL.md` |
 | Codex | `AGENTS.md` |
 | Gemini | `GEMINI.md` |
+
+The `claude-code-skill` target writes a self-contained Claude Code skill (YAML frontmatter plus the
+shared instruction template) instead of a managed section. Prefer it over the `CLAUDE.md` managed
+section when you want the instructions loaded on demand rather than in every session's context.
 
 Install one target:
 
@@ -37,6 +42,13 @@ The adapters write content between:
 
 Content outside those markers is left intact. If the file does not exist, Sentiness creates it. If
 the file exists without a managed section, Sentiness appends the section.
+
+> **Warning:** the writer replaces everything between the *first* occurrence of each marker in the
+> target file, including marker text quoted inside documentation or code fences. Do not write the
+> literal marker comments anywhere else in a managed file.
+
+The `claude-code-skill` adapter is the exception: it owns the whole `SKILL.md` file and does not use
+markers.
 
 ## What The Installed Instructions Cover
 
@@ -93,6 +105,7 @@ If `install-skill` exits with usage text, pass one of:
 
 ```sh
 sentiness install-skill --agent=claude-code
+sentiness install-skill --agent=claude-code-skill
 sentiness install-skill --agent=codex
 sentiness install-skill --agent=gemini
 sentiness install-skill --agent=all
