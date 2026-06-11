@@ -553,6 +553,9 @@ all 14 public packages live on npm under `@sentiness` (core at 0.1.1). Open item
 `docs/next-agent-handoff.md` ("Recommended Next Steps"): tag-triggered `release.yml` with npm
 Trusted Publishing, and Biome-compatible formatting for generated config files.
 
+**Published 2026-06-11:** `@sentiness/core` 0.1.2 (issue #2 init formatting fix, issue #1 wizard
+integration) and the new `@sentiness/check-eslint` 0.1.0 — 15 public packages now.
+
 Recently completed:
 
 0. *(done 2026-06-10)* **One-command onboarding (T4.4)** — `sentiness init` now detects the stack
