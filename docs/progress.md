@@ -571,7 +571,9 @@ all 14 public packages live on npm under `@sentiness` (core at 0.1.1). Open item
 Trusted Publishing, and Biome-compatible formatting for generated config files.
 
 **Published 2026-06-11:** `@sentiness/core` 0.1.2 (issue #2 init formatting fix, issue #1 wizard
-integration) and the new `@sentiness/check-eslint` 0.1.0 — 15 public packages now.
+integration) and the new `@sentiness/check-eslint` 0.1.0 — 15 public packages now. Later the same
+day: `@sentiness/adapters` 0.1.1 and `@sentiness/core` 0.1.3 shipping the `codex-skill` adapter
+(issue #5).
 
 Recently completed:
 
