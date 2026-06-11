@@ -1,0 +1,41 @@
+{
+  "name": "@sentiness/check-eslint",
+  "version": "0.1.0",
+  "description": "Sentiness check that runs ESLint and maps diagnostics to normalized findings, for ecosystems Biome cannot fully lint (e.g. Vue SFCs).",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.10"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Arateki/Sentiness.git",
+    "directory": "packages/checks/eslint"
+  },
+  "homepage": "https://github.com/Arateki/Sentiness#readme",
+  "bugs": "https://github.com/Arateki/Sentiness/issues",
+  "type": "module",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "node ../../../scripts/clean-dist.mjs && tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --config ../../../vitest.config.base.ts src"
+  },
+  "dependencies": {
+    "@sentiness/check-sdk": "workspace:*",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@sentiness/_test-utils": "workspace:*",
+    "typescript": "latest",
+    "vitest": "latest"
+  }
+}
