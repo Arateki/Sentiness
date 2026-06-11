@@ -53,10 +53,9 @@ granular token in the human's `~/.npmrc`.
    `pnpm -r publish --provenance` using npm Trusted Publishing (OIDC, no stored token). The human
    must configure each package's trusted publisher on npmjs.com. This also retires the granular
    token. Approach already discussed and agreed with the human on 2026-06-10.
-2. **Generated config vs. Biome formatting** — `sentiness init` writes `sentiness.config.json`
-   via `JSON.stringify(..., 2)`, which expands short arrays one-element-per-line; Biome's default
-   formatter compacts them, so a fresh biome-enabled project starts with a format finding on the
-   file Sentiness itself generated. Fix by emitting Biome-compatible formatting (or running the
-   detected formatter on generated files).
+2. **Generated config vs. Biome formatting** — *done 2026-06-11 (GitHub issue #2)*: after the
+   package-install step, `init` now runs `biome format --write sentiness.config.json` through the
+   injected `ProcessRunner`, so the generated config always matches the project's active formatter
+   style. Formatter absence or refusal is non-fatal (logged at debug level).
 3. **Security follow-up for the human**: the npm granular token was pasted into the working chat
    transcript on 2026-06-10 and should be revoked and regenerated.

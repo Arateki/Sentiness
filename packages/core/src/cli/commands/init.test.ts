@@ -116,7 +116,7 @@ describe('initCommand', () => {
     const exitCode = await initCommand({}, deps);
 
     expect(exitCode).toBe(0);
-    expect(deps.processRunner.calls).toHaveLength(0);
+    expect(deps.processRunner.calls.filter((call) => call.args[0] === 'add')).toHaveLength(0);
   });
 
   it('warns and continues when the package install fails', async () => {
@@ -143,7 +143,7 @@ describe('initCommand', () => {
     const exitCode = await initCommand({ yes: true, checks: 'biome', baseline: false }, deps);
 
     expect(exitCode).toBe(0);
-    expect(deps.processRunner.calls).toHaveLength(0);
+    expect(deps.processRunner.calls.filter((call) => call.args[0] === 'add')).toHaveLength(0);
     expect(await fs.exists('/project/.claude/skills/sentiness/SKILL.md')).toBe(false);
     expect(await fs.exists('/project/.git/hooks/pre-commit')).toBe(false);
   });
@@ -163,6 +163,46 @@ describe('initCommand', () => {
       args: ['add', '-D', '@sentiness/check-biome', '@biomejs/biome'],
       options: { cwd: '/project' },
     });
+  });
+
+  it('formats the generated config with the project formatter (biome)', async () => {
+    const fs = pnpmProject();
+    const deps = makeDeps(fs);
+
+    const exitCode = await initCommand({ yes: true, checks: 'biome', baseline: false }, deps);
+
+    expect(exitCode).toBe(0);
+    expect(deps.processRunner.calls).toContainEqual({
+      command: 'biome',
+      args: ['format', '--write', '/project/sentiness.config.json'],
+      options: { cwd: '/project' },
+    });
+  });
+
+  it('formats the config after installing packages so a freshly installed biome is used', async () => {
+    const fs = pnpmProject();
+    const deps = makeDeps(fs);
+
+    const exitCode = await initCommand(
+      { yes: true, checks: 'biome', baseline: false, install: true },
+      deps,
+    );
+
+    expect(exitCode).toBe(0);
+    const commands = deps.processRunner.calls.map((call) => call.command);
+    expect(commands.indexOf('biome')).toBeGreaterThan(commands.indexOf('pnpm'));
+  });
+
+  it('continues when biome is unavailable to format the generated config', async () => {
+    const fs = pnpmProject();
+    const deps = makeDeps(fs);
+    deps.processRunner.enqueue({ stdout: '', stderr: 'biome: command not found', exitCode: 1 });
+
+    const exitCode = await initCommand({ yes: true, checks: 'biome', baseline: false }, deps);
+
+    expect(exitCode).toBe(0);
+    expect(deps.processRunner.calls.some((call) => call.command === 'biome')).toBe(true);
+    expect(await fs.exists('/project/sentiness.config.json')).toBe(true);
   });
 
   it('installs agent instructions for --skill agents and records them in config', async () => {
