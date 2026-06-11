@@ -13,6 +13,7 @@ describe('adapter registry', () => {
       { agent: 'claude-code', targetFile: 'CLAUDE.md' },
       { agent: 'claude-code-skill', targetFile: '.claude/skills/sentiness/SKILL.md' },
       { agent: 'codex', targetFile: 'AGENTS.md' },
+      { agent: 'codex-skill', targetFile: '.agents/skills/sentiness/SKILL.md' },
       { agent: 'gemini', targetFile: 'GEMINI.md' },
     ]);
   });
@@ -21,6 +22,7 @@ describe('adapter registry', () => {
     expect(getAdapter('claude-code')?.targetFile).toBe('CLAUDE.md');
     expect(getAdapter('claude-code-skill')?.targetFile).toBe('.claude/skills/sentiness/SKILL.md');
     expect(getAdapter('codex')?.targetFile).toBe('AGENTS.md');
+    expect(getAdapter('codex-skill')?.targetFile).toBe('.agents/skills/sentiness/SKILL.md');
     expect(getAdapter('gemini')?.targetFile).toBe('GEMINI.md');
   });
 });

@@ -9,12 +9,16 @@ which Sentiness commands to run, which files are protected, and how to handle ba
 |---|---|
 | Claude Code (managed section) | `CLAUDE.md` |
 | Claude Code (discoverable skill) | `.claude/skills/sentiness/SKILL.md` |
-| Codex | `AGENTS.md` |
+| Codex (managed section) | `AGENTS.md` |
+| Codex (discoverable skill) | `.agents/skills/sentiness/SKILL.md` |
 | Gemini | `GEMINI.md` |
 
-The `claude-code-skill` target writes a self-contained Claude Code skill (YAML frontmatter plus the
-shared instruction template) instead of a managed section. Prefer it over the `CLAUDE.md` managed
-section when you want the instructions loaded on demand rather than in every session's context.
+The `claude-code-skill` and `codex-skill` targets write a self-contained skill (YAML frontmatter
+plus the shared instruction template) instead of a managed section. Prefer them over the
+`CLAUDE.md`/`AGENTS.md` managed sections when you want the instructions loaded on demand rather
+than in every session's context; the skill also appears in the agent's skills list (Codex
+`/skills`, invocable as `$sentiness`). The `sentiness init` wizard recommends the skill targets
+when it detects the corresponding agent files.
 
 Install one target:
 
@@ -49,8 +53,8 @@ spans — is ignored, and the managed section is appended at the end of the file
 avoid writing the literal marker comments on their own line outside the managed section: the
 writer binds to the first full-line occurrence of each marker.
 
-The `claude-code-skill` adapter is the exception: it owns the whole `SKILL.md` file and does not use
-markers.
+The `claude-code-skill` and `codex-skill` adapters are the exception: they own the whole
+`SKILL.md` file and do not use markers.
 
 ## What The Installed Instructions Cover
 

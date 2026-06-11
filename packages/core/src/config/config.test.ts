@@ -59,10 +59,16 @@ describe('config', () => {
       const config = resolveConfig(
         validateConfig({
           schemaVersion: '1.0',
-          agents: ['claude-code', 'claude-code-skill', 'codex', 'gemini'],
+          agents: ['claude-code', 'claude-code-skill', 'codex', 'codex-skill', 'gemini'],
         }),
       );
-      expect(config.agents).toEqual(['claude-code', 'claude-code-skill', 'codex', 'gemini']);
+      expect(config.agents).toEqual([
+        'claude-code',
+        'claude-code-skill',
+        'codex',
+        'codex-skill',
+        'gemini',
+      ]);
     });
 
     it('rejects unknown agent names', () => {

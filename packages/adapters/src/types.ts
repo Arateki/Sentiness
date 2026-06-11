@@ -7,7 +7,7 @@ export interface RenderOptions {
   readonly pendingPath: string;
 }
 
-export type AgentName = 'claude-code' | 'claude-code-skill' | 'codex' | 'gemini';
+export type AgentName = 'claude-code' | 'claude-code-skill' | 'codex' | 'codex-skill' | 'gemini';
 
 export interface InstallResult {
   readonly agent: AgentName;

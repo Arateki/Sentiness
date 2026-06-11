@@ -239,11 +239,12 @@ describe('initCommand', () => {
     expect(exitCode).toBe(0);
     expect(
       mockConfirm.mock.calls.some(
-        (call) => typeof call[0] === 'string' && call[0].includes('codex'),
+        (call) => typeof call[0] === 'string' && call[0].includes('codex-skill'),
       ),
     ).toBe(true);
-    const agents = await fs.readFile('/project/AGENTS.md');
-    expect(agents).toContain('sentiness:start');
+    const skill = await fs.readFile('/project/.agents/skills/sentiness/SKILL.md');
+    expect(skill).toContain('name: sentiness');
+    expect(await fs.readFile('/project/AGENTS.md')).toBe('# existing instructions');
   });
 
   it('installs git hooks with --hooks', async () => {

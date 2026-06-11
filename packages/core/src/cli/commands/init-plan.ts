@@ -168,12 +168,14 @@ export async function buildOnboardingPlan(cwd: string, fs: FileSystem): Promise<
     },
   ];
 
+  // Skill adapters are preferred over managed sections: agents load skills on
+  // demand instead of carrying the full instructions in every session.
   const detectedAgents: string[] = [];
   if ((await fs.exists(join(cwd, '.claude'))) || (await fs.exists(join(cwd, 'CLAUDE.md')))) {
     detectedAgents.push('claude-code-skill');
   }
-  if (await fs.exists(join(cwd, 'AGENTS.md'))) {
-    detectedAgents.push('codex');
+  if ((await fs.exists(join(cwd, '.agents'))) || (await fs.exists(join(cwd, 'AGENTS.md')))) {
+    detectedAgents.push('codex-skill');
   }
   if (await fs.exists(join(cwd, 'GEMINI.md'))) {
     detectedAgents.push('gemini');
