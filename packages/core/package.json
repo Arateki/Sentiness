@@ -1,6 +1,6 @@
 {
   "name": "@sentiness/core",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "CLI quality gate for AI coding agents: runs configured checks and emits one normalized, baseline-aware JSON report.",
   "license": "MIT",
   "engines": {
