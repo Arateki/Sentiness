@@ -29,6 +29,7 @@ export type OnboardingPlan = {
 // semgrep — doctor prints their install hints).
 const EXTERNAL_TOOL_PACKAGES: Readonly<Record<string, string>> = {
   biome: '@biomejs/biome',
+  eslint: 'eslint',
   knip: 'knip',
   stryker: '@stryker-mutator/core',
   'dependency-cruiser': 'dependency-cruiser',
@@ -42,6 +43,15 @@ const PLAYWRIGHT_CONFIG_FILES = [
   'playwright.config.js',
   'playwright.config.mjs',
   'playwright.config.cjs',
+] as const;
+
+const ESLINT_CONFIG_FILES = [
+  'eslint.config.js',
+  'eslint.config.mjs',
+  'eslint.config.cjs',
+  'eslint.config.ts',
+  'eslint.config.mts',
+  'eslint.config.cts',
 ] as const;
 
 function dependencyNames(metadata: PackageMetadata): ReadonlySet<string> {
@@ -77,6 +87,7 @@ export async function buildOnboardingPlan(cwd: string, fs: FileSystem): Promise<
   const hasTestRunner = testRunner !== 'none';
   const hasBiomeConfig = await anyExists(cwd, fs, ['biome.json', 'biome.jsonc']);
   const hasOtherLinter = installed.has('eslint');
+  const hasEslint = hasOtherLinter || (await anyExists(cwd, fs, ESLINT_CONFIG_FILES));
   const hasPlaywright =
     installed.has('@playwright/test') ||
     installed.has('playwright') ||
@@ -88,6 +99,12 @@ export async function buildOnboardingPlan(cwd: string, fs: FileSystem): Promise<
       label: 'Biome check (fast lint & format)',
       tier: 'fast',
       recommended: hasBiomeConfig || !hasOtherLinter,
+    },
+    {
+      id: 'eslint',
+      label: 'ESLint check (ecosystems Biome cannot fully lint, e.g. Vue SFCs)',
+      tier: 'standard',
+      recommended: hasEslint,
     },
     {
       id: 'knip',

@@ -183,6 +183,25 @@ importers:
         specifier: latest
         version: 4.1.5(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5)(vite@8.0.10(@types/node@25.6.0)(jiti@2.6.1)(yaml@2.8.3))
 
+  packages/checks/eslint:
+    dependencies:
+      '@sentiness/check-sdk':
+        specifier: workspace:*
+        version: link:../../check-sdk
+      zod:
+        specifier: ^4.3.6
+        version: 4.4.3
+    devDependencies:
+      '@sentiness/_test-utils':
+        specifier: workspace:*
+        version: link:../../_test-utils
+      typescript:
+        specifier: latest
+        version: 6.0.3
+      vitest:
+        specifier: latest
+        version: 4.1.8(@types/node@25.6.0)(@vitest/coverage-v8@4.1.5(vitest@4.1.5))(vite@8.0.10(@types/node@25.6.0)(jiti@2.6.1)(yaml@2.8.3))
+
   packages/checks/jscpd:
     dependencies:
       '@sentiness/check-sdk':

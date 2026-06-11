@@ -20,12 +20,13 @@ function recommendedIds(checks: readonly CheckRecommendation[]): readonly string
 }
 
 describe('buildOnboardingPlan', () => {
-  it('lists all eleven implemented checks', async () => {
+  it('lists all twelve implemented checks', async () => {
     const fs = fsWith({ '/project/package.json': packageJson({}) });
     const plan = await buildOnboardingPlan('/project', fs);
 
     expect(plan.checks.map((check) => check.id)).toEqual([
       'biome',
+      'eslint',
       'knip',
       'coverage',
       'stryker',
@@ -37,6 +38,29 @@ describe('buildOnboardingPlan', () => {
       'semgrep',
       'playwright',
     ]);
+  });
+
+  it('recommends eslint only when an eslint dependency or flat config exists', async () => {
+    const none = await buildOnboardingPlan(
+      '/project',
+      fsWith({ '/project/package.json': packageJson({}) }),
+    );
+    expect(recommendedIds(none.checks)).not.toContain('eslint');
+
+    const withDep = await buildOnboardingPlan(
+      '/project',
+      fsWith({ '/project/package.json': packageJson({ eslint: '^9.0.0' }) }),
+    );
+    expect(recommendedIds(withDep.checks)).toContain('eslint');
+
+    const withConfig = await buildOnboardingPlan(
+      '/project',
+      fsWith({
+        '/project/package.json': packageJson({}),
+        '/project/eslint.config.mjs': 'export default [];',
+      }),
+    );
+    expect(recommendedIds(withConfig.checks)).toContain('eslint');
   });
 
   it('recommends coverage and stryker only when a test runner is present', async () => {
@@ -141,5 +165,10 @@ describe('missingPackagesFor', () => {
   it('does not list npm packages for non-npm tools', () => {
     const missing = missingPackagesFor(['osv-scanner', 'semgrep'], new Set());
     expect(missing).toEqual(['@sentiness/check-osv-scanner', '@sentiness/check-semgrep']);
+  });
+
+  it('lists eslint as the npm tool for the eslint check', () => {
+    const missing = missingPackagesFor(['eslint'], new Set());
+    expect(missing).toEqual(['@sentiness/check-eslint', 'eslint']);
   });
 });

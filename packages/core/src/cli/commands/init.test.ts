@@ -63,6 +63,7 @@ describe('initCommand', () => {
     const config = JSON.parse(await fs.readFile('/project/sentiness.config.json'));
     expect(Object.keys(config.checks)).toEqual([
       'biome',
+      'eslint',
       'knip',
       'coverage',
       'stryker',
@@ -84,7 +85,7 @@ describe('initCommand', () => {
     const deps = makeDeps(fs);
     mockConfirm.mockImplementation(async (question: string) => {
       if (question.startsWith('Enable')) {
-        return question.includes('Biome');
+        return question.startsWith('Enable Biome check');
       }
       if (question.startsWith('Install') || question.startsWith('Create')) {
         return question.startsWith('Install missing packages');
@@ -108,7 +109,7 @@ describe('initCommand', () => {
     const deps = makeDeps(fs);
     mockConfirm.mockImplementation(async (question: string) => {
       if (question.startsWith('Enable')) {
-        return question.includes('Biome');
+        return question.startsWith('Enable Biome check');
       }
       return false;
     });
@@ -125,7 +126,7 @@ describe('initCommand', () => {
     deps.processRunner.enqueue({ stdout: '', stderr: 'registry down', exitCode: 1 });
     mockConfirm.mockImplementation(async (question: string) => {
       if (question.startsWith('Enable')) {
-        return question.includes('Biome');
+        return question.startsWith('Enable Biome check');
       }
       return question.startsWith('Install missing packages');
     });

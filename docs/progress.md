@@ -322,6 +322,7 @@ Packaging fixes applied:
 All implemented check packages follow the same structure: `detect`, `run`, `normalize`, fingerprint computation, and `FakeProcessRunner`-based tests.
 
 - **`@sentiness/check-biome`** — Biome lint check; JSON normalization; severity and location mapping.
+- **`@sentiness/check-eslint`** — Runs the project's own ESLint flat config (`eslint --format json`) for ecosystems Biome cannot fully lint (e.g. Vue SFCs); severity mapping, parse-error findings, diff-aware targets.
 - **`@sentiness/check-knip`** — Unused exports and dead-dependency detection; JSON normalization.
 - **`@sentiness/check-coverage`** — Istanbul `coverage-final.json` reader; per-file and diff coverage thresholds; skips gracefully when report is absent.
 - **`@sentiness/check-stryker`** — StrykerJS mutation score; surviving-mutant findings; reads Stryker's JSON report.
@@ -525,6 +526,25 @@ Delegating to the real formatter respects whatever style the target project conf
 imitating Biome's defaults. When Biome is absent or rejects the file, the step is a non-fatal
 debug-level no-op. Covered by unit tests in `init.test.ts` and validated end to end against a
 fresh Biome 2.x workspace (`biome check sentiness.config.json` exits 0 after `init`).
+
+## Issue #1 feature: `@sentiness/check-eslint` (2026-06-11)
+
+New check package for ecosystems Biome cannot fully lint yet — most notably Vue SFCs via
+`eslint-plugin-vue` (GitHub issue #1). Before this, a Nuxt/Vue app's lint ran outside the
+Sentiness gate, so agents could declare tasks done with lint errors in `.vue` files.
+
+The check follows the established package template (models: `check-biome`, `check-playwright`):
+`detect` via `eslint --version`; `run` executes `eslint --format json` honoring the project's own
+flat config; skips gracefully when no `eslint.config.*` exists; exit 1 with parseable JSON is
+success-with-findings, exit >= 2 is a check error. Normalization maps severity 2/1 to
+error/warning, turns fatal messages into `parse-error` findings, drops rule-less operational
+notices ("File ignored because…"), and relativizes absolute paths. In diff mode only changed
+files are linted; otherwise configurable `targets` (default `['.']`) keep it disjoint from
+`check-biome`; `extraArgs` passes extra CLI flags. Default tier: `standard` (ESLint is slower
+than Biome). The init wizard now lists twelve checks and recommends `eslint` when an `eslint`
+dependency or flat config exists; `missingPackagesFor` maps the check to the `eslint` npm
+package. Validated end to end against a real ESLint 9 flat-config workspace (violations,
+clean-after-fix, and skip paths).
 
 ## Recommended next steps
 
