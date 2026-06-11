@@ -514,8 +514,10 @@ a built-CLI smoke test against a file quoting the markers inline.
 
 ## Recommended next steps
 
-The previously tracked items are all done (see the dated sections below). Current work: npm
-publication (MIT license, metadata, GitHub remote — decided 2026-06-10).
+The previously tracked items are all done (see the dated sections below). **Published 2026-06-10:**
+all 14 public packages live on npm under `@sentiness` (core at 0.1.1). Open items now live in
+`docs/next-agent-handoff.md` ("Recommended Next Steps"): tag-triggered `release.yml` with npm
+Trusted Publishing, and Biome-compatible formatting for generated config files.
 
 Recently completed:
 

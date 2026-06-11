@@ -1,6 +1,6 @@
 # Next Agent Handoff
 
-Date: 2026-06-09
+Date: 2026-06-11
 
 ## How to start
 
@@ -9,56 +9,54 @@ Date: 2026-06-09
 3. Run the "How to resume safely" command block at the end of `docs/progress.md` before touching
    code.
 
-## Current Status
+## Current Status (audited 2026-06-11)
 
-- Phases A–K are done and committed. The CLI is usable end-to-end with 10 check packages, baseline
-  workflows, background jobs, hooks, the init wizard, `doctor` config validation, `init-config`,
-  and four agent adapters (`claude-code`, `claude-code-skill`, `codex`, `gemini`).
-- Phase K added the `claude-code-skill` adapter: a discoverable Claude Code skill written to
-  `.claude/skills/sentiness/SKILL.md` (whole-file, YAML frontmatter, no managed markers,
-  idempotent). The generated skill file is committed in this repo as dogfooding.
-- A dogfooding incident had corrupted `CLAUDE.md` (commit `00cce0a`): `install-skill
-  --agent=claude-code` replaced content between marker text that the spec quoted inline. Fixed on
-  2026-06-09 — see `docs/progress.md` ("Dogfooding incident"). Rule going forward: never write the
-  literal managed-marker comments inside any file the adapters may target.
+- **Published on npm**: all 14 public packages live under the `@sentiness` scope
+  (`@sentiness/core` at **0.1.1**, the other 13 at 0.1.0; npm org owned by the `arateki.co`
+  account). Published runtime is byte-equivalent to `main` HEAD — the only commit touching
+  `packages/` since the 0.1.1 publish changed a test file, which is excluded from tarballs.
+- **GitHub**: `git@github.com:Arateki/Sentiness.git`, branch `main`, CI on push/PR. Two CI fixes
+  landed after the first runs: (1) `pnpm build` now runs before typecheck/tests because workspace
+  packages resolve each other through `dist/` (clean runners have no dist); (2) the install-skill
+  test derives its expected version from `SENTINESS_VERSION` instead of hardcoding `0.1.0`.
+- **End-to-end verified from the public registry**: a clean temp project with
+  `pnpm add -D @sentiness/core` + `sentiness init --yes --checks=biome --no-baseline --install
+  --skill=claude-code-skill --hooks` installs packages, the skill, and hooks; plain `--yes`
+  installs nothing (the 0.1.0 regression — cac defaulting `--no-X`-registered flags to true — is
+  fixed in 0.1.1 and guarded by E2E).
+- 11 checks, 4 agent adapters, one-command onboarding (T4.4), baseline workflows, background jobs,
+  hooks, doctor config validation, and the Playwright visual-feedback check (T5.11/T6.6) are all
+  done. CLI usable end-to-end.
 
-## Validation Run (2026-06-09)
+## Validation Run (2026-06-11, clean-runner simulation: all dist/ deleted first)
 
 ```sh
-pnpm typecheck                  # clean
-pnpm lint                       # 173 files, clean
-pnpm test                       # all packages green; core 135 tests / 24 files
-pnpm test:e2e                   # 13/13 after full build
-pnpm sentiness check --tier=fast --compact   # summary.status: ok
+pnpm build                       # 15 packages
+pnpm lint                        # 188 files, clean
+pnpm typecheck                   # 15 packages
+pnpm test                        # 15 packages green (core: 162 tests)
+pnpm test:e2e                    # 14/14
+pnpm check:release-packages      # 14 packages
+pnpm sentiness check --tier=fast --compact          # ok
+pnpm sentiness check --tier=standard --trigger=pre-done   # ok
 ```
+
+## Release process
+
+Bump version in the package → `pnpm build` → commit →
+`pnpm --filter <pkg> publish --access public --publish-branch main`. npm auth currently uses a
+granular token in the human's `~/.npmrc`.
 
 ## Recommended Next Steps
 
-See the numbered list at the end of `docs/progress.md`. In priority order:
-
-**Published (2026-06-10):** all 14 public packages are live on npm under the `@sentiness` scope
-(org owned by the `arateki.co` npm account). `@sentiness/core` is at **0.1.1** (0.1.0 had a cac
-flag-registration bug: registering `--no-install`/`--no-hooks` defaulted those flags to true,
-so plain `init --yes` installed git hooks; caught by a real-npm smoke test, fixed, republished,
-and guarded by the E2E non-interactive init test). The other 13 packages are at 0.1.0.
-GitHub remote: git@github.com:Arateki/Sentiness.git, branch `main`.
-
-Release process for next versions: bump version in the package, `pnpm build`, then
-`pnpm --filter <pkg> publish --access public --publish-branch main` (npm auth via granular token
-in `~/.npmrc`).
-
-Done recently: T4.4 one-command onboarding (`sentiness init` detects, recommends, installs with
-consent, installs skills/hooks — see `docs/progress.md`); T5.11 (`@sentiness/check-playwright`)
-and T6.6 (skill template "Visual Verification", TEMPLATE_VERSION 1.2).
-
-Done after this handoff was first written: `config.agents` accepts `'claude-code-skill'`
-(2026-06-09); the managed-section writer only matches full-line markers, closing the root cause
-of the CLAUDE.md corruption incident (2026-06-10); `deps-diff` now parses `pnpm-lock.yaml`
-(v5/v6/v9) and `yarn.lock` (classic/berry) for transitive diffs (2026-06-10); diff-mode policy
-decided and implemented — `security`/`platform` findings are never dropped by `--diff`
-(2026-06-10); `dependency-cruiser` declares `configFiles`/`defaultConfig` with the
-doctor → init-config cycle covered by E2E, while jscpd/semgrep deliberately stay config-file-free
-(2026-06-10); `NodeProcessRunner` prepends the cwd's `node_modules/.bin` chain to the child PATH,
-so external-tool checks work when the CLI is invoked directly (2026-06-10).
-
-Each item is one task: one branch, one PR, per `CLAUDE.md` §3.9.
+1. **`release.yml` (tag-triggered publish workflow)** — run the full gate sequence, then
+   `pnpm -r publish --provenance` using npm Trusted Publishing (OIDC, no stored token). The human
+   must configure each package's trusted publisher on npmjs.com. This also retires the granular
+   token. Approach already discussed and agreed with the human on 2026-06-10.
+2. **Generated config vs. Biome formatting** — `sentiness init` writes `sentiness.config.json`
+   via `JSON.stringify(..., 2)`, which expands short arrays one-element-per-line; Biome's default
+   formatter compacts them, so a fresh biome-enabled project starts with a format finding on the
+   file Sentiness itself generated. Fix by emitting Biome-compatible formatting (or running the
+   detected formatter on generated files).
+3. **Security follow-up for the human**: the npm granular token was pasted into the working chat
+   transcript on 2026-06-10 and should be revoked and regenerated.
