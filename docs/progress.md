@@ -1,6 +1,6 @@
 # Sentiness implementation handoff
 
-Last updated: 2026-06-09
+Last updated: 2026-06-11
 
 This document is a working handoff for continuing the implementation. The canonical product specification is still `CLAUDE.md`; this file records the practical phase approach, what has already landed, what is partial, and what should happen next.
 
@@ -511,6 +511,20 @@ Product follow-up **done 2026-06-10**: the managed-section writer now only match
 occupy an entire line (`line.trim() === marker`), so inline-quoted marker text can never delimit
 the section. Covered by a regression test reproducing this incident, an indented-marker test, and
 a built-CLI smoke test against a file quoting the markers inline.
+
+## Issue #2 fix: init formats the generated config with the project formatter (2026-06-11)
+
+`sentiness init` wrote `sentiness.config.json` via `JSON.stringify(config, null, 2)`, which
+expands every array across multiple lines; Biome collapses short arrays inline, so on projects
+with the `biome` check enabled the very first `sentiness check --tier=fast` blocked on a
+formatting finding against the file `init` itself generated (GitHub issue #2).
+
+Fix: after the consensual package-install step (so a Biome installed by `init` itself counts),
+`init` runs `biome format --write sentiness.config.json` through the injected `ProcessRunner`.
+Delegating to the real formatter respects whatever style the target project configures instead of
+imitating Biome's defaults. When Biome is absent or rejects the file, the step is a non-fatal
+debug-level no-op. Covered by unit tests in `init.test.ts` and validated end to end against a
+fresh Biome 2.x workspace (`biome check sentiness.config.json` exits 0 after `init`).
 
 ## Recommended next steps
 

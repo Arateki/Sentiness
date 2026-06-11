@@ -3,6 +3,7 @@ import { Prompter } from '../wizard/prompts.js';
 import { baselineInitCommand } from './baseline.js';
 import { buildOnboardingPlan } from './init-plan.js';
 import {
+  formatGeneratedConfig,
   installAgentSkills,
   installGitHooks,
   installMissingPackages,
@@ -207,6 +208,8 @@ export async function initCommand(args: ParsedArgs, deps: CommandDeps): Promise<
         confirm(`Install missing packages? (${command})`, true, args.install === true),
       deps,
     );
+
+    await formatGeneratedConfig(configPath, deps);
 
     await installAgentSkills(agents, deps);
 

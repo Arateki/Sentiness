@@ -73,6 +73,24 @@ export async function installMissingPackages(
   }
 }
 
+// JSON.stringify expands every array onto multiple lines, while Biome collapses
+// short arrays inline, so a freshly generated config would immediately fail the
+// project's own biome check. Delegate to the project formatter instead of
+// imitating its style; when biome is absent or rejects the file this is a no-op.
+export async function formatGeneratedConfig(configPath: string, deps: CommandDeps): Promise<void> {
+  const result = await deps.processRunner.execFile('biome', ['format', '--write', configPath], {
+    cwd: deps.cwd,
+  });
+  if (result.exitCode === 0) {
+    deps.logger.info('Formatted sentiness.config.json with the project formatter (biome).');
+  } else {
+    deps.logger.debug('Skipped formatting the generated config; biome unavailable or declined.', {
+      exitCode: result.exitCode,
+      stderr: result.stderr,
+    });
+  }
+}
+
 export async function installAgentSkills(
   agents: readonly string[],
   deps: CommandDeps,
