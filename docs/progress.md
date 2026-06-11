@@ -546,6 +546,23 @@ dependency or flat config exists; `missingPackagesFor` maps the check to the `es
 package. Validated end to end against a real ESLint 9 flat-config workspace (violations,
 clean-after-fix, and skip paths).
 
+## Issue #5 feature: `codex-skill` adapter (2026-06-11)
+
+`install-skill --agent=codex` writes the managed section into `AGENTS.md`, which is durable Codex
+instruction context but not a skill: Sentiness did not appear in the Codex CLI `/skills` list and
+could not be invoked as `$sentiness` (GitHub issue #5).
+
+Following the issue's option 2 (mirroring the existing `claude-code` / `claude-code-skill` split),
+a new `codex-skill` adapter writes a whole-file repository-scoped Codex skill at
+`.agents/skills/sentiness/SKILL.md` (same frontmatter + rendered template as the Claude skill —
+the SKILL.md format is shared, so both adapters come from one `createSkillFileAdapter` factory).
+`codex` keeps writing the `AGENTS.md` managed section unchanged. The config `agents` enum,
+`install-skill` parsing, `init` agent selection, and docs all accept `codex-skill`; the `init`
+detection now prefers skill adapters (`.agents/` or `AGENTS.md` → `codex-skill`, matching the
+existing `.claude/`/`CLAUDE.md` → `claude-code-skill` rule), because skills load on demand instead
+of inflating every session's context. Validated with the built CLI against a scratch repo:
+install, idempotent re-install, and `AGENTS.md` left untouched.
+
 ## Recommended next steps
 
 The previously tracked items are all done (see the dated sections below). **Published 2026-06-10:**

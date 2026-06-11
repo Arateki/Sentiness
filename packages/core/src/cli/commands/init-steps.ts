@@ -4,7 +4,13 @@ import { installHooksCommand } from './install-hooks.js';
 import { installSkillCommand } from './install-skill.js';
 import type { CommandDeps, ParsedArgs } from './types.js';
 
-const KNOWN_AGENTS = ['claude-code', 'claude-code-skill', 'codex', 'gemini'] as const;
+const KNOWN_AGENTS = [
+  'claude-code',
+  'claude-code-skill',
+  'codex',
+  'codex-skill',
+  'gemini',
+] as const;
 
 const NON_NPM_TOOL_HINTS: Readonly<Record<string, string>> = {
   'osv-scanner':

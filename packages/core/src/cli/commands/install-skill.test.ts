@@ -35,6 +35,7 @@ function depsFor(fs: InMemoryFileSystem): CommandDeps {
     fakeAdapter('claude-code', 'CLAUDE.md'),
     fakeAdapter('claude-code-skill', '.claude/skills/sentiness/SKILL.md'),
     fakeAdapter('codex', 'AGENTS.md'),
+    fakeAdapter('codex-skill', '.agents/skills/sentiness/SKILL.md'),
     fakeAdapter('gemini', 'GEMINI.md'),
   ] as const;
 
@@ -88,7 +89,21 @@ describe('installSkillCommand', () => {
     expect(await fs.exists('/project/CLAUDE.md')).toBe(true);
     expect(await fs.exists('/project/.claude/skills/sentiness/SKILL.md')).toBe(true);
     expect(await fs.exists('/project/AGENTS.md')).toBe(true);
+    expect(await fs.exists('/project/.agents/skills/sentiness/SKILL.md')).toBe(true);
     expect(await fs.exists('/project/GEMINI.md')).toBe(true);
+  });
+
+  it('installs the codex skill adapter into .agents/skills', async () => {
+    const fs = new InMemoryFileSystem({
+      '/project/sentiness.config.json': JSON.stringify(DEFAULT_CONFIG),
+    });
+
+    const exitCode = await installSkillCommand({ agent: 'codex-skill' }, depsFor(fs));
+
+    expect(exitCode).toBe(0);
+    expect(await fs.readFile('/project/.agents/skills/sentiness/SKILL.md')).toContain(
+      `codex-skill:${SENTINESS_VERSION}:sentiness.config.json`,
+    );
   });
 
   it('accepts agents: ["claude-code-skill"] in config and installs only the skill', async () => {

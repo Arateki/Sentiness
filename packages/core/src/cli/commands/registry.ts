@@ -84,7 +84,7 @@ export function registerCommands(cli: CAC, deps: CommandDeps): void {
 
   cli
     .command('install-skill', 'Install managed Sentiness instructions for an AI agent')
-    .option('--agent <agent>', 'claude-code, claude-code-skill, codex, gemini, or all')
+    .option('--agent <agent>', 'claude-code, claude-code-skill, codex, codex-skill, gemini, or all')
     .action(wrap(installSkillCommand, deps));
 
   cli

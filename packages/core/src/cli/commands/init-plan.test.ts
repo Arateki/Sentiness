@@ -131,7 +131,7 @@ describe('buildOnboardingPlan', () => {
     expect(recommendedIds(plan.checks)).toContain('knip');
   });
 
-  it('detects agents from instruction files', async () => {
+  it('detects agents from instruction files, preferring skill adapters', async () => {
     const plan = await buildOnboardingPlan(
       '/project',
       fsWith({
@@ -140,7 +140,18 @@ describe('buildOnboardingPlan', () => {
         '/project/AGENTS.md': '# instructions',
       }),
     );
-    expect(plan.detectedAgents).toEqual(['claude-code-skill', 'codex']);
+    expect(plan.detectedAgents).toEqual(['claude-code-skill', 'codex-skill']);
+  });
+
+  it('detects codex from a repository .agents directory', async () => {
+    const plan = await buildOnboardingPlan(
+      '/project',
+      fsWith({
+        '/project/package.json': packageJson({}),
+        '/project/.agents/skills/other/SKILL.md': '# some skill',
+      }),
+    );
+    expect(plan.detectedAgents).toEqual(['codex-skill']);
   });
 });
 

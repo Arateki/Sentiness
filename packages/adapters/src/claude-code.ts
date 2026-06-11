@@ -86,14 +86,25 @@ export function createFileAdapter(agent: AgentName, targetFile: TargetFile): Age
 
 export const claudeCodeAdapter = createFileAdapter('claude-code', 'CLAUDE.md');
 
-export const claudeCodeSkillAdapter: AgentAdapter = {
-  agent: 'claude-code-skill',
-  targetFile: SKILL_RELATIVE_PATH,
-  async install(cwd: string, fs: FileSystem, options: RenderOptions): Promise<InstallResult> {
-    const targetPath = join(cwd, SKILL_RELATIVE_PATH);
-    const nextContent = skillFileContent(options);
-    await fs.mkdir(dirname(targetPath), { recursive: true });
-    const changed = await writeIfChanged(targetPath, nextContent, fs);
-    return { agent: 'claude-code-skill', targetPath, changed };
-  },
-};
+// Whole-file skill adapter: the agent discovers the skill on demand from its
+// skills directory, so the file is fully owned by Sentiness (no markers).
+// Claude Code and Codex share the SKILL.md format (frontmatter name +
+// description), so the same factory serves both.
+export function createSkillFileAdapter(agent: AgentName, skillRelativePath: string): AgentAdapter {
+  return {
+    agent,
+    targetFile: skillRelativePath,
+    async install(cwd: string, fs: FileSystem, options: RenderOptions): Promise<InstallResult> {
+      const targetPath = join(cwd, skillRelativePath);
+      const nextContent = skillFileContent(options);
+      await fs.mkdir(dirname(targetPath), { recursive: true });
+      const changed = await writeIfChanged(targetPath, nextContent, fs);
+      return { agent, targetPath, changed };
+    },
+  };
+}
+
+export const claudeCodeSkillAdapter = createSkillFileAdapter(
+  'claude-code-skill',
+  SKILL_RELATIVE_PATH,
+);
