@@ -606,6 +606,29 @@ existing `.claude/`/`CLAUDE.md` → `claude-code-skill` rule), because skills lo
 of inflating every session's context. Validated with the built CLI against a scratch repo:
 install, idempotent re-install, and `AGENTS.md` left untouched.
 
+## Automated release pipeline — Changesets + OIDC Trusted Publishing (2026-06-14)
+
+Releases are now automated. The previously-tracked `release.yml` next step is done.
+
+- **Changesets** drives versioning (`.changeset/config.json`, public access, `main` base,
+  independent per-package versions; `_test-utils`/`demo-project` ignored). A PR that changes a
+  publishable package adds a `.changeset/*.md`; on push to `main` the `changesets/action` opens a
+  **"Version Packages"** PR; merging it bumps versions + CHANGELOGs; the next run publishes.
+- **Publishing uses `scripts/publish-oidc.mjs`, not `changeset publish`.** Root cause discovered the
+  hard way: `pnpm publish` (which `changeset publish` calls, since `packageManager` is pnpm) does not
+  implement npm's OIDC exchange (`ENEEDAUTH`), while `npm publish` does OIDC but cannot resolve
+  `workspace:*`. The script bridges both — `pnpm pack` (resolves `workspace:*`) +
+  `npm publish --provenance` (OIDC via the runner's `id-token`) — creating each git tag and emitting
+  `New tag:` so the action pushes tags and cuts releases. Idempotent: versions already on npm are
+  skipped. The workflow runs `npm install -g npm@latest` (Node 22's npm predates OIDC) and must
+  **not** set `registry-url` on setup-node (it writes an `.npmrc` whose placeholder token hijacked
+  auth → `404`).
+- **First automated publish (2026-06-14):** all 15 public packages shipped from CI via OIDC with
+  provenance — `@sentiness/core` **0.1.4**, `@sentiness/check-sdk` **0.2.0**, `@sentiness/check-knip`
+  **0.2.0**, `@sentiness/adapters` **0.1.2**, the other 11 checks **0.1.1** (the `check-sdk` minor
+  cascaded a patch bump to every dependent via `workspace:*`). Git tags + GitHub Releases created for
+  all 15. The previously-exposed granular npm token was revoked; nothing stores a long-lived token.
+
 ## Recommended next steps
 
 The previously tracked items are all done (see the dated sections below). **Published 2026-06-10:**
