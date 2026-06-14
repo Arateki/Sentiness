@@ -1,5 +1,5 @@
 import { dirname, isAbsolute, join } from 'node:path';
-import type { Check, FileSystem } from '@sentiness/check-sdk';
+import type { Check, DefaultConfigContext, FileSystem } from '@sentiness/check-sdk';
 import { loadConfig } from '../../config/config.js';
 import { CheckRegistry } from '../../registry/registry.js';
 import type { CommandDeps, ParsedArgs } from './types.js';
@@ -30,6 +30,7 @@ async function maybeWriteDefault(
   cwd: string,
   fs: FileSystem,
   force: boolean,
+  context: DefaultConfigContext,
 ): Promise<WriteOutcome> {
   if (!check.configFiles || check.configFiles.length === 0) {
     return { checkId: check.id, action: 'skipped-no-files' };
@@ -41,7 +42,7 @@ async function maybeWriteDefault(
   if (existing && !force) {
     return { checkId: check.id, action: 'skipped-existing', existing };
   }
-  const template = check.defaultConfig();
+  const template = check.defaultConfig(context);
   const target = isAbsolute(template.path) ? template.path : join(cwd, template.path);
   await fs.mkdir(dirname(target), { recursive: true });
   await fs.writeFile(target, template.content);
@@ -64,9 +65,12 @@ export async function initConfigCommand(args: ParsedArgs, deps: CommandDeps): Pr
     return 1;
   }
 
+  const context: DefaultConfigContext = {
+    enabledCheckIds: registry.list().map((check) => check.id),
+  };
   const outcomes: WriteOutcome[] = [];
   for (const check of candidates) {
-    outcomes.push(await maybeWriteDefault(check, deps.cwd, deps.fs, force));
+    outcomes.push(await maybeWriteDefault(check, deps.cwd, deps.fs, force, context));
   }
 
   deps.stdout.write(`${JSON.stringify({ outcomes }, null, 2)}\n`);
