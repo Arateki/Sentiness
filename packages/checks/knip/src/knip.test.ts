@@ -137,6 +137,57 @@ describe('knip', () => {
     expect(result.findings[0]?.fingerprint).toBeDefined();
   });
 
+  it('suppresses the Sentiness stack false-positives out of the box (issue #7)', async () => {
+    const fs = new InMemoryFileSystem();
+    const process = new FakeProcessRunner();
+    // Mirrors the report from issue #7: a freshly-onboarded repo where knip,
+    // with no project config, flags the Sentiness check packages and the tool
+    // binaries they wrap as unused devDependencies, plus a genuinely unused dep.
+    process.enqueue({
+      exitCode: 0,
+      stdout: JSON.stringify({
+        devDependencies: [
+          '@sentiness/check-biome',
+          '@sentiness/check-deps-diff',
+          '@sentiness/check-eslint',
+          '@sentiness/check-knip',
+          '@sentiness/check-playwright',
+          'eslint',
+          'left-pad',
+        ],
+      }),
+      stderr: '',
+    });
+
+    const ctx = makeContext(fs, process);
+    const result = await knipCheck.run(ctx);
+
+    expect(result.status).toBe('violations');
+    expect(result.findings.map((f) => f.message)).toEqual([
+      'Unused unused-dev-dependencies: left-pad',
+    ]);
+  });
+
+  it('honors extra ignoreDependencies from check config', async () => {
+    const fs = new InMemoryFileSystem();
+    const process = new FakeProcessRunner();
+    process.enqueue({
+      exitCode: 0,
+      stdout: JSON.stringify({ devDependencies: ['vuetify', 'left-pad'] }),
+      stderr: '',
+    });
+
+    const ctx = {
+      ...makeContext(fs, process),
+      checkConfig: { enabled: true, ignoreDependencies: ['vuetify'] },
+    };
+    const result = await knipCheck.run(ctx);
+
+    expect(result.findings.map((f) => f.message)).toEqual([
+      'Unused unused-dev-dependencies: left-pad',
+    ]);
+  });
+
   it('drops file-level issues without a file path instead of reporting unknown', async () => {
     const fs = new InMemoryFileSystem();
     const process = new FakeProcessRunner();

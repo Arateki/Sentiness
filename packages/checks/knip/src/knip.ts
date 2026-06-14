@@ -7,14 +7,31 @@ import {
   computeFingerprint,
   type Finding,
 } from '@sentiness/check-sdk';
+import { z } from 'zod';
+import { filterIgnoredDependencies } from './ignore.js';
 import { type NormalizedKnipIssue, normalizeKnipOutput } from './normalize.js';
 
 const checkId = asCheckId('knip');
 
+const KnipConfigSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    tier: z.enum(['fast', 'standard', 'slow']).optional(),
+    /**
+     * Extra dependency names/patterns to drop from knip's unused-dependency
+     * findings, on top of the built-in Sentiness defaults. Matched as anchored
+     * regular expressions against the dependency name.
+     */
+    ignoreDependencies: z.array(z.string()).optional(),
+  })
+  .catchall(z.unknown());
+
+type KnipConfig = z.infer<typeof KnipConfigSchema>;
+
 type FileCache = Map<string, readonly string[]>;
 
 async function lineContent(
-  ctx: CheckContext,
+  ctx: CheckContext<KnipConfig>,
   cache: FileCache,
   file: string,
   line: number | undefined,
@@ -39,7 +56,7 @@ async function lineContent(
 }
 
 async function toFinding(
-  ctx: CheckContext,
+  ctx: CheckContext<KnipConfig>,
   cache: FileCache,
   issue: NormalizedKnipIssue,
 ): Promise<Finding> {
@@ -67,10 +84,11 @@ async function toFinding(
   };
 }
 
-export const knipCheck: Check = {
+export const knipCheck: Check<KnipConfig> = {
   id: checkId,
   category: 'architecture',
   defaultTier: 'standard',
+  configSchema: KnipConfigSchema,
   async detect(ctx) {
     // Knip is typically installed locally. We check if `knip` is available via npx/pnpm exec
     const result = await ctx.process.execFile('knip', ['--version'], {
@@ -106,10 +124,17 @@ export const knipCheck: Check = {
       };
     }
 
-    const cache: FileCache = new Map();
-    let findings = await Promise.all(
-      normalizeKnipOutput(parsed).map((issue) => toFinding(ctx, cache, issue)),
+    // knip flags Sentiness's own check packages and the tool binaries they wrap
+    // (run by dynamic dispatch / execFile, never `import`ed) as unused
+    // dependencies. Drop those false-positives before they become blocking
+    // findings, merging the built-in defaults with any user-supplied patterns.
+    const issues = filterIgnoredDependencies(
+      normalizeKnipOutput(parsed),
+      ctx.checkConfig.ignoreDependencies ?? [],
     );
+
+    const cache: FileCache = new Map();
+    let findings = await Promise.all(issues.map((issue) => toFinding(ctx, cache, issue)));
 
     if (ctx.diffOnly) {
       const changedSet = new Set(ctx.changedFiles);
