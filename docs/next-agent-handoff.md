@@ -11,10 +11,10 @@ Date: 2026-06-11
 
 ## Current Status (audited 2026-06-11)
 
-- **Published on npm**: all 14 public packages live under the `@sentiness` scope
-  (`@sentiness/core` at **0.1.1**, the other 13 at 0.1.0; npm org owned by the `arateki.co`
-  account). Published runtime is byte-equivalent to `main` HEAD — the only commit touching
-  `packages/` since the 0.1.1 publish changed a test file, which is excluded from tarballs.
+- **Published on npm**: all 15 public packages live under the `@sentiness` scope. Latest as of
+  2026-06-14 (published from CI via OIDC, see "Release process"): `@sentiness/core` **0.1.4**,
+  `check-sdk` **0.2.0**, `check-knip` **0.2.0**, `adapters` **0.1.2**, the other 11 checks **0.1.1**.
+  npm org owned by the `arateki.co` account.
 - **GitHub**: `git@github.com:Arateki/Sentiness.git`, branch `main`, CI on push/PR. Two CI fixes
   landed after the first runs: (1) `pnpm build` now runs before typecheck/tests because workspace
   packages resolve each other through `dist/` (clean runners have no dist); (2) the install-skill
@@ -41,21 +41,33 @@ pnpm sentiness check --tier=fast --compact          # ok
 pnpm sentiness check --tier=standard --trigger=pre-done   # ok
 ```
 
-## Release process
+## Release process (automated since 2026-06-14)
 
-Bump version in the package → `pnpm build` → commit →
-`pnpm --filter <pkg> publish --access public --publish-branch main`. npm auth currently uses a
-granular token in the human's `~/.npmrc`.
+Releases run through **Changesets + GitHub Actions OIDC Trusted Publishing** — no stored npm token.
+
+1. A PR that changes a publishable package adds a `.changeset/*.md` (run `pnpm changeset`).
+2. On push to `main`, `.github/workflows/release.yml` runs the gate sequence and the
+   `changesets/action`, which opens/updates a **"Version Packages"** PR while changesets are pending.
+3. Merging that PR bumps versions + writes CHANGELOGs; the next run publishes the changed packages.
+
+Publishing does **not** use `changeset publish` directly: pnpm has no OIDC exchange (`ENEEDAUTH`)
+and `npm publish` cannot resolve `workspace:*`. `scripts/publish-oidc.mjs` bridges them — `pnpm pack`
+(resolves `workspace:*`) + `npm publish --provenance` (npm ≥ 11.5.1 does the OIDC exchange), creating
+each git tag for the Changesets action to push. It is idempotent (skips versions already on npm). See
+the `sentiness-release-pipeline` memory for the full rationale and the gotchas (no `registry-url` in
+setup-node; bumping `check-sdk` cascades to all 15 packages via `workspace:*`).
 
 ## Recommended Next Steps
 
-1. **`release.yml` (tag-triggered publish workflow)** — run the full gate sequence, then
-   `pnpm -r publish --provenance` using npm Trusted Publishing (OIDC, no stored token). The human
-   must configure each package's trusted publisher on npmjs.com. This also retires the granular
-   token. Approach already discussed and agreed with the human on 2026-06-10.
+1. **`release.yml` (Changesets + OIDC publish)** — *done 2026-06-14*. The pipeline is live: all 15
+   public packages published from CI via OIDC Trusted Publishing with provenance — `@sentiness/core`
+   **0.1.4**, `check-sdk` **0.2.0**, `check-knip` **0.2.0**, `adapters` **0.1.2**, the other 11
+   checks **0.1.1** (the `check-sdk` minor cascaded a patch bump to every dependent). Git tags and
+   GitHub Releases created for all 15. Each package has a Trusted Publisher configured on npmjs.com
+   (org `Arateki`, repo `Sentiness`, workflow `release.yml`).
 2. **Generated config vs. Biome formatting** — *done 2026-06-11 (GitHub issue #2)*: after the
    package-install step, `init` now runs `biome format --write sentiness.config.json` through the
    injected `ProcessRunner`, so the generated config always matches the project's active formatter
    style. Formatter absence or refusal is non-fatal (logged at debug level).
-3. **Security follow-up for the human**: the npm granular token was pasted into the working chat
-   transcript on 2026-06-10 and should be revoked and regenerated.
+3. **Security follow-up for the human** — *done 2026-06-14*: the previously-exposed npm granular
+   token was revoked; CI now publishes via OIDC, so no long-lived npm token is stored anywhere.
