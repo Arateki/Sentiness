@@ -15,7 +15,14 @@ import type { CommandDeps } from './types.js';
 function writeMockCheck(
   cwd: string,
   id: string,
-  options: { configFiles?: readonly string[]; defaultPath?: string; defaultContent?: string },
+  options: {
+    configFiles?: readonly string[];
+    defaultPath?: string;
+    defaultContent?: string;
+    // When set, emits a context-aware defaultConfig that serializes
+    // ctx.enabledCheckIds into the file content at `defaultPath`.
+    dynamicDefaultPath?: string;
+  },
 ): void {
   const packageDir = join(cwd, 'node_modules', '@sentiness', `check-${id}`);
   mkdirSync(packageDir, { recursive: true });
@@ -36,6 +43,11 @@ function writeMockCheck(
   if (options.defaultPath && options.defaultContent !== undefined) {
     fragments.push(
       `defaultConfig: () => ({ path: ${JSON.stringify(options.defaultPath)}, content: ${JSON.stringify(options.defaultContent)} })`,
+    );
+  }
+  if (options.dynamicDefaultPath) {
+    fragments.push(
+      `defaultConfig: (ctx) => ({ path: ${JSON.stringify(options.dynamicDefaultPath)}, content: JSON.stringify(ctx.enabledCheckIds) })`,
     );
   }
   writeFileSync(join(packageDir, 'index.js'), `export default { ${fragments.join(', ')} };`);
@@ -152,6 +164,30 @@ describe('initConfigCommand', () => {
     expect(exit).toBe(0);
     const printed = JSON.parse(String(stdout.mock.calls[0]?.[0]));
     expect(printed.outcomes[0].action).toBe('skipped-no-default');
+  });
+
+  it('passes the enabled check ids to a context-aware defaultConfig', async () => {
+    writeMockCheck(cwd, 'alpha', { configFiles: ['alpha.json'], dynamicDefaultPath: 'alpha.json' });
+    writeMockCheck(cwd, 'beta', {
+      configFiles: ['beta.conf'],
+      defaultPath: 'beta.conf',
+      defaultContent: 'x',
+    });
+    writeFileSync(
+      join(cwd, 'sentiness.config.json'),
+      JSON.stringify({
+        schemaVersion: '1.0',
+        checks: {
+          alpha: { enabled: true, tier: 'fast' },
+          beta: { enabled: true, tier: 'fast' },
+        },
+      }),
+    );
+
+    const exit = await initConfigCommand({ check: 'alpha' }, deps());
+
+    expect(exit).toBe(0);
+    expect(JSON.parse(readFileSync(join(cwd, 'alpha.json'), 'utf-8'))).toEqual(['alpha', 'beta']);
   });
 
   it('returns 1 when --check targets an id that is not enabled', async () => {

@@ -8,10 +8,13 @@ import {
   type Finding,
 } from '@sentiness/check-sdk';
 import { z } from 'zod';
+import { buildKnipDefaultConfig } from './default-config.js';
 import { filterIgnoredDependencies } from './ignore.js';
 import { type NormalizedKnipIssue, normalizeKnipOutput } from './normalize.js';
 
 const checkId = asCheckId('knip');
+
+const KNIP_CONFIG_FILES = ['knip.json', 'knip.jsonc', 'knip.config.js', 'knip.config.ts'] as const;
 
 const KnipConfigSchema = z
   .object({
@@ -89,6 +92,11 @@ export const knipCheck: Check<KnipConfig> = {
   category: 'architecture',
   defaultTier: 'standard',
   configSchema: KnipConfigSchema,
+  configFiles: KNIP_CONFIG_FILES,
+  // The runtime ignore filter (issue #7) keeps the gate green without any
+  // knip.json, so a missing config must not fail `doctor`.
+  configOptional: true,
+  defaultConfig: buildKnipDefaultConfig,
   async detect(ctx) {
     // Knip is typically installed locally. We check if `knip` is available via npx/pnpm exec
     const result = await ctx.process.execFile('knip', ['--version'], {

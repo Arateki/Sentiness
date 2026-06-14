@@ -12,35 +12,59 @@ const DEPENDENCY_RULE_IDS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Dependencies that the Sentiness stack invokes by dynamic dispatch or as a
- * binary — never via a source `import`. knip's import-based heuristics therefore
- * always misreport them as unused once they are installed, producing blocking
- * false-positives on a freshly-onboarded repo. We suppress them by default:
- *
- * - the `@sentiness/*` scope: check packages are loaded by the CLI registry, and
- *   `@sentiness/core` is the CLI binary itself;
- * - the external tool binaries each Sentiness check wraps (run via `execFile`).
- *
- * Patterns are matched as anchored regular expressions against the dependency
- * name (so `@sentiness/.*` matches every scoped package while `eslint` matches
- * only `eslint`). Users can extend this set through `knip.ignoreDependencies` in
- * `sentiness.config.json`.
+ * The `@sentiness/*` scope: check packages are loaded by the CLI registry and
+ * `@sentiness/core` is the CLI binary itself, so they are never `import`ed from
+ * a target project's source.
+ */
+export const SENTINESS_SCOPE_PATTERN = '@sentiness/.*';
+
+/**
+ * External tool dependency each Sentiness check wraps and runs via `execFile`,
+ * keyed by check id. knip's import-based analysis cannot see binary usage, so it
+ * misreports these as unused once installed. Checks without an npm-installable
+ * tool (`coverage`, `deps-diff`) are intentionally absent.
+ */
+export const CHECK_TOOL_DEPENDENCIES: Readonly<Record<string, readonly string[]>> = {
+  biome: ['biome', '@biomejs/biome'],
+  eslint: ['eslint'],
+  knip: ['knip'],
+  playwright: ['playwright', '@playwright/test'],
+  jscpd: ['jscpd'],
+  semgrep: ['semgrep'],
+  'osv-scanner': ['osv-scanner'],
+  'dependency-cruiser': ['dependency-cruiser'],
+  'lockfile-lint': ['lockfile-lint'],
+  stryker: ['@stryker-mutator/core'],
+};
+
+/**
+ * Dependency names/patterns ignored at runtime by default (issue #7). Covers the
+ * `@sentiness/*` scope plus every wrapped tool binary, because at runtime the
+ * check does not know which sibling checks are enabled. Matched as anchored
+ * regular expressions against the dependency name (so `@sentiness/.*` matches
+ * every scoped package while `eslint` matches only `eslint`). Users can extend
+ * this set through `knip.ignoreDependencies` in `sentiness.config.json`.
  */
 export const DEFAULT_IGNORED_DEPENDENCIES: readonly string[] = [
-  '@sentiness/.*',
-  'eslint',
-  'biome',
-  '@biomejs/biome',
-  'knip',
-  'playwright',
-  '@playwright/test',
-  'jscpd',
-  'semgrep',
-  'osv-scanner',
-  'dependency-cruiser',
-  'lockfile-lint',
-  '@stryker-mutator/core',
+  SENTINESS_SCOPE_PATTERN,
+  ...Object.values(CHECK_TOOL_DEPENDENCIES).flat(),
 ];
+
+/**
+ * Scope + the wrapped tool binaries of the *given* checks, deduplicated and
+ * stably ordered. Used by `defaultConfig` to scaffold a minimal `knip.json`
+ * `ignoreDependencies` list that reflects only the enabled checks, rather than
+ * the fixed superset used at runtime.
+ */
+export function ignoredDependenciesForChecks(checkIds: readonly string[]): readonly string[] {
+  const tools = new Set<string>();
+  for (const id of checkIds) {
+    for (const dep of CHECK_TOOL_DEPENDENCIES[id] ?? []) {
+      tools.add(dep);
+    }
+  }
+  return [SENTINESS_SCOPE_PATTERN, ...tools];
+}
 
 function matchesPattern(name: string, pattern: string): boolean {
   try {

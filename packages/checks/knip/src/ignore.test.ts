@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CHECK_TOOL_DEPENDENCIES,
   DEFAULT_IGNORED_DEPENDENCIES,
   filterIgnoredDependencies,
+  ignoredDependenciesForChecks,
   isIgnoredDependencyIssue,
+  SENTINESS_SCOPE_PATTERN,
 } from './ignore.js';
 import type { NormalizedKnipIssue } from './normalize.js';
 
@@ -118,5 +121,33 @@ describe('filterIgnoredDependencies', () => {
   it('applies extra patterns from config', () => {
     const issues = [depIssue('vuetify'), depIssue('sass')];
     expect(filterIgnoredDependencies(issues, ['vuetify', 'sass'])).toEqual([]);
+  });
+});
+
+describe('ignoredDependenciesForChecks', () => {
+  it('returns only the scope when no check wraps a tool', () => {
+    expect(ignoredDependenciesForChecks(['coverage', 'deps-diff'])).toEqual([
+      SENTINESS_SCOPE_PATTERN,
+    ]);
+  });
+
+  it('includes the tools of the given checks, deduplicated', () => {
+    expect(ignoredDependenciesForChecks(['eslint', 'biome', 'eslint'])).toEqual([
+      SENTINESS_SCOPE_PATTERN,
+      'eslint',
+      'biome',
+      '@biomejs/biome',
+    ]);
+  });
+
+  it('ignores unknown check ids', () => {
+    expect(ignoredDependenciesForChecks(['does-not-exist'])).toEqual([SENTINESS_SCOPE_PATTERN]);
+  });
+
+  it('keeps the runtime default list in sync with the tool map', () => {
+    expect(DEFAULT_IGNORED_DEPENDENCIES).toEqual([
+      SENTINESS_SCOPE_PATTERN,
+      ...Object.values(CHECK_TOOL_DEPENDENCIES).flat(),
+    ]);
   });
 });

@@ -22,3 +22,17 @@ via the check config in `sentiness.config.json`:
   }
 }
 ```
+
+### Scaffolding `knip.json`
+
+The runtime filter only applies inside `sentiness check`. If you also run `knip` directly (IDE,
+`lint-staged`, a separate CI job), generate a `knip.json` so those invocations are clean too:
+
+```sh
+sentiness init-config --check=knip
+```
+
+This writes a `knip.json` whose `ignoreDependencies` covers the `@sentiness/*` scope plus the tool
+binaries of the checks you have enabled. Because the runtime filter keeps the Sentiness gate green
+without it, this config is optional: `sentiness doctor` reports whether the file exists but never
+fails just because it is missing.
