@@ -38,12 +38,15 @@ jobs:
       - name: Enable Corepack
         run: corepack enable
 
+      # No `registry-url`: it writes an .npmrc with `_authToken=${NODE_AUTH_TOKEN}`,
+      # and the Changesets action fills that token with a dummy placeholder in OIDC
+      # mode. `pnpm publish` would then use the dummy token (→ 404) instead of doing
+      # the OIDC exchange. Without that .npmrc, pnpm performs Trusted Publishing via OIDC.
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: pnpm
-          registry-url: https://registry.npmjs.org
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
