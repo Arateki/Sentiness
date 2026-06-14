@@ -87,8 +87,23 @@ function packAndPublish(pkg) {
       stdio: 'inherit',
     },
   );
+  // `changeset publish` normally creates the git tags itself; our custom publish must
+  // do the same so the Changesets action can push them and cut GitHub releases. Without
+  // this, the action tries to push tags that don't exist locally (src refspec error).
+  const tag = `${pkg.name}@${pkg.version}`;
+  try {
+    execFileSync('git', ['tag', tag], { cwd: root, stdio: ['ignore', 'ignore', 'pipe'] });
+  } catch (error) {
+    const stderr = String(
+      error && typeof error === 'object' && 'stderr' in error ? error.stderr : '',
+    );
+    // A tag left over from a previous partial run is benign; anything else is real.
+    if (!stderr.includes('already exists')) {
+      throw new Error(`git tag failed for ${tag}: ${stderr || String(error)}`, { cause: error });
+    }
+  }
   // The Changesets action scrapes stdout for these lines to create GitHub releases.
-  console.log(`New tag: ${pkg.name}@${pkg.version}`);
+  console.log(`New tag: ${tag}`);
 }
 
 function main() {
