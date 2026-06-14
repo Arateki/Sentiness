@@ -110,27 +110,28 @@ Reproduced end-to-end against real knip output (a fixture with `@sentiness/check
 installed but unimported): before → blocking `violations`; after → `status: ok`; adding a genuinely
 unused `left-pad` still surfaces it.
 
-### Deferred to a follow-up PR — option 2 + dynamic `defaultConfig`
+### Option 2 + dynamic `defaultConfig` (follow-up PR)
 
 The issue's option 2 (`sentiness init-config` scaffolds a `knip.json` seeded with the ignore list)
-was deferred because it surfaced a design tension worth handling deliberately rather than inside a
-bugfix PR:
+surfaced a design tension handled deliberately in its own PR rather than inside the bugfix:
 
-- `init-config` only writes config for checks that declare `configFiles`, but `doctor` treats any
+- `init-config` only writes config for checks that declare `configFiles`, but `doctor` treated any
   check with `configFiles` as **requiring** config (`doctor.ts` `ok` gate). Declaring
-  `configFiles: ['knip.json']` on knip would regress the doctor to demand a `knip.json` even though
-  the runtime filter makes it optional.
-- The clean resolution needs a "config is optional" signal on the `Check` SDK type
-  (`configOptional?: boolean`, additive/non-breaking) plus a dynamic `defaultConfig(ctx)` so the
-  generated `knip.json` lists only the *enabled* checks' tools instead of a fixed superset. Today
-  `defaultConfig` is `() => CheckDefaultConfig` (static, context-free), shared by `dependency-cruiser`
-  and `stryker`.
+  `configFiles: ['knip.json']` on knip would have regressed the doctor to demand a `knip.json` even
+  though the runtime filter makes it optional.
+- The clean resolution needed a "config is optional" signal on the `Check` SDK type plus a dynamic
+  `defaultConfig(ctx)` so the generated `knip.json` lists only the *enabled* checks' tools instead of
+  a fixed superset.
 
-Planned for the follow-up branch/PR: make `defaultConfig` context-aware (breaking SDK change,
-propagated through `init-config`, with `dependency-cruiser`/`stryker` accepting the new arg), add
-`configOptional` and have `doctor` respect it, then give `check-knip` `configFiles` + a dynamic
-`defaultConfig` so `sentiness init-config` scaffolds a minimal `knip.json` without regressing the
-doctor.
+Implemented:
+
+| What | Status |
+|------|--------|
+| SDK: `defaultConfig` is now `(ctx: DefaultConfigContext) => CheckDefaultConfig` (was `() => …`); new `DefaultConfigContext { enabledCheckIds }`; new additive `Check.configOptional?: boolean`. `dependency-cruiser`/`stryker` keep their `() => …` impls (assignable to the new signature). | Done |
+| `init-config` builds the context (`enabledCheckIds` from the registry) and passes it to `defaultConfig`. | Done |
+| `doctor` reports `config.optional` and no longer fails when an *optional* config file is absent; a *required* one still fails. | Done |
+| `check-knip` declares `configFiles`, `configOptional: true`, and a dynamic `defaultConfig` that scaffolds a minimal `knip.json` (scope + enabled checks' tool binaries). `ignore.ts` now derives both the runtime list and the scaffold list from one `CHECK_TOOL_DEPENDENCIES` map. | Done |
+| Tests: SDK type test, `init-config` context propagation, `doctor` optional/required matrix, `default-config.test.ts`, `ignore.test.ts` map/scaffold coverage. | Done |
 
 ## Sprint corretivo (2026-04-28 / 2026-04-29)
 

@@ -4,8 +4,10 @@ import {
   asRuleId,
   type Check,
   type CheckContext,
+  type CheckDefaultConfig,
   type CheckId,
   compareSeverity,
+  type DefaultConfigContext,
   type Finding,
   type ProcessRunner,
   severityValue,
@@ -22,6 +24,17 @@ describe('SDK types', () => {
     expectTypeOf<Check>().toHaveProperty('detect');
     expectTypeOf<Check>().toHaveProperty('run');
     expectTypeOf<Check>().toHaveProperty('dispose');
+  });
+
+  it('passes the enabled check ids to a context-aware defaultConfig', () => {
+    expectTypeOf<Check>().toHaveProperty('defaultConfig');
+    expectTypeOf<Check>().toHaveProperty('configOptional');
+    expectTypeOf<DefaultConfigContext>().toHaveProperty('enabledCheckIds');
+    expectTypeOf<DefaultConfigContext['enabledCheckIds']>().toEqualTypeOf<readonly CheckId[]>();
+    expectTypeOf<NonNullable<Check['defaultConfig']>>().toEqualTypeOf<
+      (ctx: DefaultConfigContext) => CheckDefaultConfig
+    >();
+    expectTypeOf<Check['configOptional']>().toEqualTypeOf<boolean | undefined>();
   });
 
   it('types process runner as an injected dependency', () => {

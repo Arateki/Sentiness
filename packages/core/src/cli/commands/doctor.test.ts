@@ -12,19 +12,32 @@ import { createNodeFileSystem } from '../../fs/node-fs.js';
 import { doctorCommand } from './doctor.js';
 import type { CommandDeps } from './types.js';
 
-function writeMockCheck(cwd: string, id: string, detectBody: string): void {
+function writeMockCheck(
+  cwd: string,
+  id: string,
+  detectBody: string,
+  options: { configFiles?: readonly string[]; configOptional?: boolean } = {},
+): void {
   const packageDir = join(cwd, 'node_modules', '@sentiness', `check-${id}`);
   mkdirSync(packageDir, { recursive: true });
   writeFileSync(
     join(packageDir, 'package.json'),
     JSON.stringify({ name: `@sentiness/check-${id}`, type: 'module', exports: './index.js' }),
   );
+  const extra: string[] = [];
+  if (options.configFiles) {
+    extra.push(`configFiles: ${JSON.stringify(options.configFiles)},`);
+  }
+  if (options.configOptional !== undefined) {
+    extra.push(`configOptional: ${options.configOptional},`);
+  }
   writeFileSync(
     join(packageDir, 'index.js'),
     `export default {
       id: "${id}",
       category: "lint",
       defaultTier: "fast",
+      ${extra.join('\n      ')}
       detect: ${detectBody},
       run: async () => ({ status: "ok", findings: [], durationMs: 0 })
     };`,
@@ -91,5 +104,45 @@ describe('doctorCommand', () => {
     const exitCode = await doctorCommand({}, deps());
 
     expect(exitCode).toBe(0);
+  });
+
+  it('does not fail when an optional config file is absent', async () => {
+    writeMockCheck(cwd, 'fake', 'async () => ({ available: true, version: "1.0.0" })', {
+      configFiles: ['fake.json'],
+      configOptional: true,
+    });
+    writeFileSync(
+      join(cwd, 'sentiness.config.json'),
+      JSON.stringify({
+        schemaVersion: '1.0',
+        checks: { fake: { enabled: true, tier: 'fast' } },
+      }),
+    );
+    const stdout = vi.fn();
+
+    const exitCode = await doctorCommand({}, deps(stdout));
+
+    expect(exitCode).toBe(0);
+    const report = JSON.parse(String(stdout.mock.calls[0]?.[0]));
+    expect(report.ok).toBe(true);
+    expect(report.checks[0].config.configured).toBe(false);
+    expect(report.checks[0].config.optional).toBe(true);
+  });
+
+  it('still fails when a required config file is absent', async () => {
+    writeMockCheck(cwd, 'fake', 'async () => ({ available: true, version: "1.0.0" })', {
+      configFiles: ['fake.json'],
+    });
+    writeFileSync(
+      join(cwd, 'sentiness.config.json'),
+      JSON.stringify({
+        schemaVersion: '1.0',
+        checks: { fake: { enabled: true, tier: 'fast' } },
+      }),
+    );
+
+    const exitCode = await doctorCommand({}, deps());
+
+    expect(exitCode).toBe(1);
   });
 });
