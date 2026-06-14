@@ -1,0 +1,80 @@
+# Release pipeline (Changesets + npm Trusted Publishing).
+#
+# How it works:
+#   1. PRs that change a publishable package add a `.changeset/*.md` file.
+#   2. On every push to main, this workflow runs the full gate sequence and then
+#      the Changesets action. While changesets are pending, the action opens/updates
+#      a "Version Packages" PR (it does NOT publish).
+#   3. Merging that "Version Packages" PR consumes the changesets, bumps versions,
+#      writes CHANGELOGs, and this workflow then publishes the changed packages to npm.
+#
+# Auth: publishing uses npm Trusted Publishing via OIDC (id-token: write) — no stored
+# npm token. Each public @sentiness/* package must have a Trusted Publisher configured
+# on npmjs.com pointing at this repo + workflow file before the first OIDC publish.
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+# Never run two releases for the same ref at once.
+concurrency: release-${{ github.ref }}
+
+permissions: {}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # version-bump commit, tags
+      pull-requests: write # open/update the "Version Packages" PR
+      id-token: write # OIDC for npm Trusted Publishing + provenance
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Workspace packages resolve each other through dist/, so build before the gates.
+      - name: Build
+        run: pnpm build
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: E2E tests
+        run: pnpm test:e2e
+
+      - name: Release package checks
+        run: pnpm check:release-packages
+
+      - name: Create Release PR or publish to npm
+        uses: changesets/action@v1
+        with:
+          version: pnpm version-packages
+          publish: pnpm release
+          title: "chore(release): version packages"
+          commit: "chore(release): version packages"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Generate npm provenance attestations from the OIDC identity.
+          NPM_CONFIG_PROVENANCE: "true"
