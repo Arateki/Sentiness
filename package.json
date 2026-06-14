@@ -14,10 +14,14 @@
     "test:e2e": "pnpm build && pnpm --filter @sentiness/core test:e2e",
     "lint": "biome check .",
     "typecheck": "pnpm -r typecheck",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "pnpm build && changeset publish",
     "sentiness": "node packages/core/dist/cli/index.js"
   },
   "devDependencies": {
     "@biomejs/biome": "latest",
+    "@changesets/cli": "^2.31.0",
     "@sentiness/check-biome": "workspace:*",
     "@sentiness/check-coverage": "workspace:*",
     "@sentiness/check-dependency-cruiser": "workspace:*",
