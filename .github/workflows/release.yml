@@ -51,6 +51,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # OIDC Trusted Publishing is implemented in the npm CLI (>= 11.5.1); the npm
+      # bundled with Node 22 is too old. The publish script (scripts/publish-oidc.mjs)
+      # uses this npm to do the OIDC exchange while pnpm resolves the workspace protocol.
+      - name: Update npm for OIDC Trusted Publishing
+        run: npm install -g npm@latest
+
       # Workspace packages resolve each other through dist/, so build before the gates.
       - name: Build
         run: pnpm build
