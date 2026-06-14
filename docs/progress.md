@@ -1,6 +1,6 @@
 # Sentiness implementation handoff
 
-Last updated: 2026-06-11
+Last updated: 2026-06-14
 
 This document is a working handoff for continuing the implementation. The canonical product specification is still `CLAUDE.md`; this file records the practical phase approach, what has already landed, what is partial, and what should happen next.
 
@@ -89,6 +89,48 @@ The implementation should progress in usable slices, not by completing the whole
     - Follow-up resolved 2026-06-09: `config.agents` now accepts `'claude-code-skill'`, with unit
       coverage in `config.test.ts` and an `install-skill --agent=all` filter test. The init wizard
       never prompts for agents (it points users at `install-skill`), so no wizard change was needed.
+
+## Issue #7 — knip flags the Sentiness stack as unused (2026-06-14)
+
+knip's import-based analysis cannot see dependencies that Sentiness runs by dynamic dispatch (the
+`@sentiness/check-*` packages, loaded by the CLI registry) or as a binary via `execFile` (the tools
+each check wraps, e.g. `eslint`). With no project `knip.json`, a freshly-onboarded repo therefore
+self-reported blocking `unused-dev-dependencies` errors on the first
+`sentiness check --tier=standard --trigger=pre-done`, unrelated to the user's diff.
+
+### Fix applied — option 1 (runtime filter), PR #8
+
+| What | Status |
+|------|--------|
+| New `packages/checks/knip/src/ignore.ts`: drops dependency findings (`unused-dependencies`, `unused-dev-dependencies`, `unlisted-dependencies`, `unused-binaries`) whose name matches the `@sentiness/*` scope or the wrapped tool binaries, matched as anchored regexes. Genuinely unused deps still reported. | Done |
+| `check-knip` gained a `configSchema` with `ignoreDependencies?: string[]` so users extend the default ignore list via `checks.knip.ignoreDependencies` in `sentiness.config.json`. | Done |
+| Tests: `ignore.test.ts` (defaults, anchoring, scope, rule-id coverage, user patterns, invalid-regex fallback) + `knip.test.ts` issue-#7 reproduction and config-driven ignore. Package README documents the behavior. | Done |
+
+Reproduced end-to-end against real knip output (a fixture with `@sentiness/check-*` + `eslint`
+installed but unimported): before → blocking `violations`; after → `status: ok`; adding a genuinely
+unused `left-pad` still surfaces it.
+
+### Deferred to a follow-up PR — option 2 + dynamic `defaultConfig`
+
+The issue's option 2 (`sentiness init-config` scaffolds a `knip.json` seeded with the ignore list)
+was deferred because it surfaced a design tension worth handling deliberately rather than inside a
+bugfix PR:
+
+- `init-config` only writes config for checks that declare `configFiles`, but `doctor` treats any
+  check with `configFiles` as **requiring** config (`doctor.ts` `ok` gate). Declaring
+  `configFiles: ['knip.json']` on knip would regress the doctor to demand a `knip.json` even though
+  the runtime filter makes it optional.
+- The clean resolution needs a "config is optional" signal on the `Check` SDK type
+  (`configOptional?: boolean`, additive/non-breaking) plus a dynamic `defaultConfig(ctx)` so the
+  generated `knip.json` lists only the *enabled* checks' tools instead of a fixed superset. Today
+  `defaultConfig` is `() => CheckDefaultConfig` (static, context-free), shared by `dependency-cruiser`
+  and `stryker`.
+
+Planned for the follow-up branch/PR: make `defaultConfig` context-aware (breaking SDK change,
+propagated through `init-config`, with `dependency-cruiser`/`stryker` accepting the new arg), add
+`configOptional` and have `doctor` respect it, then give `check-knip` `configFiles` + a dynamic
+`defaultConfig` so `sentiness init-config` scaffolds a minimal `knip.json` without regressing the
+doctor.
 
 ## Sprint corretivo (2026-04-28 / 2026-04-29)
 
