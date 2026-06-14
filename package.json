@@ -16,7 +16,7 @@
     "typecheck": "pnpm -r typecheck",
     "changeset": "changeset",
     "version-packages": "changeset version",
-    "release": "pnpm build && changeset publish",
+    "release": "pnpm build && node scripts/publish-oidc.mjs",
     "sentiness": "node packages/core/dist/cli/index.js"
   },
   "devDependencies": {
