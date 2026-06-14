@@ -21,6 +21,7 @@ function installSuggestion(checkId: string): string | undefined {
 
 type ConfigStatus = {
   readonly configured: boolean;
+  readonly optional: boolean;
   readonly expectedFiles: readonly string[];
   readonly foundFile?: string;
   readonly canCreateDefault: boolean;
@@ -28,14 +29,16 @@ type ConfigStatus = {
 
 async function inspectConfig(check: Check, cwd: string, fs: FileSystem): Promise<ConfigStatus> {
   const expected = check.configFiles ?? [];
+  const optional = check.configOptional === true;
   if (expected.length === 0) {
-    return { configured: true, expectedFiles: [], canCreateDefault: false };
+    return { configured: true, optional, expectedFiles: [], canCreateDefault: false };
   }
   for (const candidate of expected) {
     const path = isAbsolute(candidate) ? candidate : join(cwd, candidate);
     if (await fs.exists(path)) {
       return {
         configured: true,
+        optional,
         expectedFiles: expected,
         foundFile: candidate,
         canCreateDefault: check.defaultConfig !== undefined,
@@ -44,6 +47,7 @@ async function inspectConfig(check: Check, cwd: string, fs: FileSystem): Promise
   }
   return {
     configured: false,
+    optional,
     expectedFiles: expected,
     canCreateDefault: check.defaultConfig !== undefined,
   };
@@ -107,7 +111,11 @@ export async function doctorCommand(_args: ParsedArgs, deps: CommandDeps): Promi
   );
   const ok =
     registry.loadFailures().length === 0 &&
-    checks.every((check) => check.available && (check.config?.configured ?? true));
+    checks.every(
+      (check) =>
+        check.available &&
+        ((check.config?.configured ?? true) || (check.config?.optional ?? false)),
+    );
   deps.stdout.write(
     `${JSON.stringify(
       {

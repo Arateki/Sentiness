@@ -177,6 +177,16 @@ export type CheckDefaultConfig = {
   readonly content: string;
 };
 
+/**
+ * Context handed to `defaultConfig` so a check can tailor the file it scaffolds
+ * to the project. `enabledCheckIds` lets a check reference its siblings — e.g.
+ * knip ignoring only the tool binaries of the *enabled* checks instead of a
+ * fixed superset.
+ */
+export type DefaultConfigContext = {
+  readonly enabledCheckIds: readonly CheckId[];
+};
+
 export type Check<TConfig = Record<string, unknown>> = {
   readonly id: CheckId;
   readonly category: Category;
@@ -190,7 +200,13 @@ export type Check<TConfig = Record<string, unknown>> = {
    * `defaultConfig()` when defined.
    */
   readonly configFiles?: readonly string[];
-  readonly defaultConfig?: () => CheckDefaultConfig;
+  /**
+   * When true, the check runs correctly without a config file (it has sensible
+   * built-in defaults). `doctor` still reports whether a config file exists but
+   * does not treat its absence as a failure. Defaults to false.
+   */
+  readonly configOptional?: boolean;
+  readonly defaultConfig?: (ctx: DefaultConfigContext) => CheckDefaultConfig;
   detect(ctx: CheckContext<TConfig>): Promise<DetectResult>;
   run(ctx: CheckContext<TConfig>): Promise<CheckResult>;
   dispose?(): Promise<void>;
