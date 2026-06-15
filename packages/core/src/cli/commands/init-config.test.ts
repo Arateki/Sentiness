@@ -76,6 +76,7 @@ describe('initConfigCommand', () => {
   function deps(stdout = vi.fn()): CommandDeps {
     return {
       cwd,
+      cacheRoot: join(cwd, '.sentiness-home'),
       fs: createNodeFileSystem(),
       processRunner: new FakeProcessRunner(),
       logger: new SilentLogger(),

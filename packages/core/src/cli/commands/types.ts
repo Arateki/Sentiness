@@ -7,6 +7,7 @@ export type OutputWriter = {
 
 export type CommandDeps = {
   readonly cwd: string;
+  readonly cacheRoot: string; // resolved by the launcher, passed via --cache-root
   readonly fs: FileSystem;
   readonly processRunner: ProcessRunner;
   readonly logger: Logger;

@@ -19,9 +19,6 @@
     "schema/report.schema.json",
     "README.md"
   ],
-  "bin": {
-    "sentiness": "./dist/cli/index.js"
-  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

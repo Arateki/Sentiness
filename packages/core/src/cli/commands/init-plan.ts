@@ -27,7 +27,7 @@ export type OnboardingPlan = {
 // npm-installable external tool per check; checks absent here either need no
 // tool (coverage, deps-diff) or are not installable from npm (osv-scanner,
 // semgrep — doctor prints their install hints).
-const EXTERNAL_TOOL_PACKAGES: Readonly<Record<string, string>> = {
+export const EXTERNAL_TOOL_PACKAGES: Readonly<Record<string, string>> = {
   biome: '@biomejs/biome',
   eslint: 'eslint',
   knip: 'knip',

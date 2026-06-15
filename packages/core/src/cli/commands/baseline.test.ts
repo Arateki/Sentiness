@@ -39,6 +39,7 @@ describe('baseline commands', () => {
     });
     return {
       cwd: '/project',
+      cacheRoot: '/home/u/.sentiness',
       fs,
       git: new InMemoryGitProvider(),
       clock: new FixedClock(0),
