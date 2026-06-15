@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -98,11 +99,42 @@ function checkEntryFile(slotDir: string, id: string): string {
   return requireFromSlot.resolve(`@sentiness/check-${id}`);
 }
 
-// Resolve the package main of a path-linked local check.
+// Resolve a package's entry file from its own package.json. Node's CommonJS
+// `require.resolve` does NOT honor the `exports` field when given an absolute
+// directory path (only `main`/`index.js`), and the check packages ship with
+// `exports` but no `main`, so we read the manifest and resolve the `.` entry
+// ourselves.
+function resolvePackageEntry(pkg: Record<string, unknown>): string {
+  const exportsField = pkg.exports;
+  if (typeof exportsField === 'string') {
+    return exportsField;
+  }
+  if (isRecord(exportsField)) {
+    const dot = exportsField['.'];
+    if (typeof dot === 'string') {
+      return dot;
+    }
+    if (isRecord(dot)) {
+      const condition = dot.default ?? dot.import ?? dot.node;
+      if (typeof condition === 'string') {
+        return condition;
+      }
+    }
+  }
+  if (typeof pkg.main === 'string') {
+    return pkg.main;
+  }
+  return 'index.js';
+}
+
+// Resolve the entry file of a path-linked local check.
 function linkedEntryFile(repoRoot: string, relPath: string): string {
   const pkgDir = join(repoRoot, relPath);
-  const requireFromRepo = createRequire(join(repoRoot, 'package.json'));
-  return requireFromRepo.resolve(pkgDir);
+  const manifest: unknown = JSON.parse(readFileSync(join(pkgDir, 'package.json'), 'utf8'));
+  if (!isRecord(manifest)) {
+    throw new Error(`Invalid package.json at ${pkgDir}`);
+  }
+  return join(pkgDir, resolvePackageEntry(manifest));
 }
 
 export class CheckRegistry {

@@ -33,7 +33,7 @@ function extractCacheRoot(argv: readonly string[]): { cacheRoot: string; rest: s
       }
       continue;
     }
-    if (arg !== undefined && arg.startsWith('--cache-root=')) {
+    if (arg?.startsWith('--cache-root=')) {
       cacheRoot = arg.slice('--cache-root='.length);
       continue;
     }

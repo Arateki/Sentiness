@@ -21,8 +21,7 @@ beforeAll(() => {
     JSON.stringify({
       name: '@sentiness/check-demo',
       type: 'module',
-      main: './dist/index.js',
-      exports: { '.': './dist/index.js' },
+      exports: { '.': { types: './dist/index.d.ts', default: './dist/index.js' } },
     }),
   );
   writeFileSync(
@@ -37,7 +36,6 @@ beforeAll(() => {
     JSON.stringify({
       name: '@sentiness/check-bad',
       type: 'module',
-      main: './dist/index.js',
       exports: { '.': './dist/index.js' },
     }),
   );
