@@ -26,8 +26,21 @@ package's own `package.json` and resolves the `.` entry from `exports`/`main`.
 
 The four `init.test.ts` failures below remain (the v1-init config gap) — they are
 **not** a V1 regression. `pnpm typecheck`, `pnpm lint`, and the full `pnpm test`
-suite are otherwise green, and `pnpm build` + `check:release-packages` cover 15
-public packages including the new `@sentiness/cli`.
+unit suite are otherwise green, and `pnpm build` + `check:release-packages` cover
+15 public packages including the new `@sentiness/cli`.
+
+Two pre-existing suites stay red as v2-migration debt that is **out of V1 scope**
+(both predate this session — the config v2 rewrite in Task 1 broke them, and full
+E2E is spec task TV4.3, deferred to V4):
+
+1. `init.test.ts` — `sentiness init` still emits a v1 config (see the follow-up
+   below). Migrating it needs a product decision on how it pins the engine and
+   per-check versions.
+2. `pnpm test:e2e` (`packages/core/test/e2e/full-flow.test.ts`) — runs the built
+   CLI against `examples/demo-project`, whose `sentiness.config.json` is still v1
+   and whose checks resolve from `node_modules`. Both the demo config and the
+   assertions need a v2 rewrite (path-linked or version+cache), which belongs to
+   the V4 E2E plan, not V1.
 
 ### Known follow-up: `init` still emits a v1 config (out of V1 plan scope)
 
