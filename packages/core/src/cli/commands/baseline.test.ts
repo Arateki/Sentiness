@@ -59,7 +59,7 @@ describe('baseline commands', () => {
       },
       loadFailures: () => [],
     } as unknown as CheckRegistry;
-    vi.spyOn(CheckRegistry, 'fromConfig').mockResolvedValue(registry);
+    vi.spyOn(CheckRegistry, 'fromResolved').mockResolvedValue(registry);
   }
 
   function metricCheck(value: number): Check {

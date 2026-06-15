@@ -1,7 +1,7 @@
 import { isAbsolute, join } from 'node:path';
 import type { Check, FileSystem } from '@sentiness/check-sdk';
 import { loadConfig } from '../../config/config.js';
-import { CheckRegistry } from '../../registry/registry.js';
+import { buildRegistry } from './build-registry.js';
 import type { CommandDeps, ParsedArgs } from './types.js';
 
 function installSuggestion(checkId: string): string | undefined {
@@ -55,7 +55,7 @@ async function inspectConfig(check: Check, cwd: string, fs: FileSystem): Promise
 
 export async function doctorCommand(_args: ParsedArgs, deps: CommandDeps): Promise<number> {
   const config = await loadConfig(deps.cwd, deps.fs);
-  const registry = await CheckRegistry.fromConfig(config, deps.cwd);
+  const registry = await buildRegistry(config, deps);
   const checks = await Promise.all(
     registry.list().map(async (check) => {
       const controller = new AbortController();

@@ -18,11 +18,16 @@ function writeMockCheck(
   detectBody: string,
   options: { configFiles?: readonly string[]; configOptional?: boolean } = {},
 ): void {
-  const packageDir = join(cwd, 'node_modules', '@sentiness', `check-${id}`);
+  const packageDir = join(cwd, 'checks', id);
   mkdirSync(packageDir, { recursive: true });
   writeFileSync(
     join(packageDir, 'package.json'),
-    JSON.stringify({ name: `@sentiness/check-${id}`, type: 'module', exports: './index.js' }),
+    JSON.stringify({
+      name: `@sentiness/check-${id}`,
+      type: 'module',
+      main: './index.js',
+      exports: './index.js',
+    }),
   );
   const extra: string[] = [];
   if (options.configFiles) {
@@ -78,7 +83,7 @@ describe('doctorCommand', () => {
       JSON.stringify({
         schemaVersion: '2.0',
         engine: '2.0.0',
-        checks: { fake: { version: '1.0.0' } },
+        checks: { fake: { path: 'checks/fake' } },
       }),
     );
     const stdout = vi.fn();
@@ -99,7 +104,7 @@ describe('doctorCommand', () => {
       JSON.stringify({
         schemaVersion: '2.0',
         engine: '2.0.0',
-        checks: { fake: { version: '1.0.0' } },
+        checks: { fake: { path: 'checks/fake' } },
       }),
     );
 
@@ -118,7 +123,7 @@ describe('doctorCommand', () => {
       JSON.stringify({
         schemaVersion: '2.0',
         engine: '2.0.0',
-        checks: { fake: { version: '1.0.0' } },
+        checks: { fake: { path: 'checks/fake' } },
       }),
     );
     const stdout = vi.fn();
@@ -141,7 +146,7 @@ describe('doctorCommand', () => {
       JSON.stringify({
         schemaVersion: '2.0',
         engine: '2.0.0',
-        checks: { fake: { version: '1.0.0' } },
+        checks: { fake: { path: 'checks/fake' } },
       }),
     );
 

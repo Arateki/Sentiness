@@ -24,11 +24,16 @@ function writeMockCheck(
     dynamicDefaultPath?: string;
   },
 ): void {
-  const packageDir = join(cwd, 'node_modules', '@sentiness', `check-${id}`);
+  const packageDir = join(cwd, 'checks', id);
   mkdirSync(packageDir, { recursive: true });
   writeFileSync(
     join(packageDir, 'package.json'),
-    JSON.stringify({ name: `@sentiness/check-${id}`, type: 'module', exports: './index.js' }),
+    JSON.stringify({
+      name: `@sentiness/check-${id}`,
+      type: 'module',
+      main: './index.js',
+      exports: './index.js',
+    }),
   );
   const fragments: string[] = [
     `id: "${id}"`,
@@ -91,7 +96,7 @@ describe('initConfigCommand', () => {
       JSON.stringify({
         schemaVersion: '2.0',
         engine: '2.0.0',
-        checks: { demo: { version: '1.0.0' } },
+        checks: { demo: { path: 'checks/demo' } },
       }),
     );
     const stdout = vi.fn();
@@ -116,7 +121,7 @@ describe('initConfigCommand', () => {
       JSON.stringify({
         schemaVersion: '2.0',
         engine: '2.0.0',
-        checks: { demo: { version: '1.0.0' } },
+        checks: { demo: { path: 'checks/demo' } },
       }),
     );
     const stdout = vi.fn();
@@ -141,7 +146,7 @@ describe('initConfigCommand', () => {
       JSON.stringify({
         schemaVersion: '2.0',
         engine: '2.0.0',
-        checks: { demo: { version: '1.0.0' } },
+        checks: { demo: { path: 'checks/demo' } },
       }),
     );
 
@@ -158,7 +163,7 @@ describe('initConfigCommand', () => {
       JSON.stringify({
         schemaVersion: '2.0',
         engine: '2.0.0',
-        checks: { demo: { version: '1.0.0' } },
+        checks: { demo: { path: 'checks/demo' } },
       }),
     );
     const stdout = vi.fn();
@@ -183,8 +188,8 @@ describe('initConfigCommand', () => {
         schemaVersion: '2.0',
         engine: '2.0.0',
         checks: {
-          alpha: { version: '1.0.0' },
-          beta: { version: '1.0.0' },
+          alpha: { path: 'checks/alpha' },
+          beta: { path: 'checks/beta' },
         },
       }),
     );

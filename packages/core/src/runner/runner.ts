@@ -199,7 +199,7 @@ function syntheticLoadFailureResults(
           checkId: failure.requestedId,
           ruleId: asRuleId('check-load-error'),
           severity: 'error',
-          message: `Failed to load ${failure.moduleName}: ${failure.message}`,
+          message: `Failed to load ${failure.source}: ${failure.message}`,
           location: { file: 'sentiness.config.json' },
           fingerprint: '0'.repeat(64),
         },
