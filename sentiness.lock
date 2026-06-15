@@ -1,0 +1,18 @@
+{
+  "lockfileVersion": 1,
+  "engine": {
+    "version": "0.1.4",
+    "integrity": "sha512-/z+OE6h02xfvQdHaJgSVZAIW4Vj6zY3MMh0f2jbwXMoJ5pVE7Asdx9BcxKyKQ2MfNRzBIkIwEgs/U+ZgnwpwiA=="
+  },
+  "checks": {
+    "biome": {
+      "path": "packages/checks/biome"
+    },
+    "deps-diff": {
+      "path": "packages/checks/deps-diff"
+    },
+    "knip": {
+      "path": "packages/checks/knip"
+    }
+  }
+}

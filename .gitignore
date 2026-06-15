@@ -8,6 +8,7 @@ dist/
 /packages/checks/*/coverage/
 .sentiness/jobs/
 .sentiness/cache/
+.sentiness/home/
 .sentiness/pending-feedback.json
 reports/
 .stryker-tmp/

@@ -4,15 +4,30 @@ Last updated: 2026-06-15
 
 This document is a working handoff for continuing the implementation. The canonical product specification is still `CLAUDE.md`; this file records the practical phase approach, what has already landed, what is partial, and what should happen next.
 
-## Phase V1 (global spine) — in progress (2026-06-15)
+## Phase V1 (global spine) — done (2026-06-15)
 
-Executing `docs/superpowers/plans/2026-06-15-sentiness-v2-phase-v1-global-spine.md`.
-Landed so far: Task 1 (config v2), Task 2 (cache paths + artifact store), Task 3
-(`sentiness.lock` schema + manager), Task 4 (registry resolves from cache /
-path-linked checks, with `buildRegistry` helper and migrated command fixtures).
-Remaining: Task 5 (checks bundle npm tool + ProcessRunner slot bins), Task 6
-(`sentiness install` + `--cache-root`), Task 7 (thin `@sentiness/cli` launcher),
-Task 8 (dogfood V1 in this repo).
+Executed `docs/superpowers/plans/2026-06-15-sentiness-v2-phase-v1-global-spine.md`
+end to end. Landed: Task 1 (config v2), Task 2 (cache paths + artifact store),
+Task 3 (`sentiness.lock` schema + manager), Task 4 (registry resolves from cache
+/ path-linked checks, with `buildRegistry` helper), Task 5 (biome/eslint/knip/
+jscpd bundle their npm tool as an exact dep + `ProcessRunner` slot-bin support
+via `CheckContext.binPaths`), Task 6 (`sentiness install` + `--cache-root` engine
+entrypoint, global `bin` removed from `@sentiness/core`), Task 7 (thin
+`@sentiness/cli` launcher fetches the pinned engine and spawns it), Task 8
+(dogfood: this repo's `sentiness.config.json` is v2 with path-linked checks and a
+committed `sentiness.lock`; `install`, `install --frozen`, and a launcher-driven
+`check` all verified locally).
+
+Bug found and fixed during the Task 8 dogfood: `CheckRegistry`'s path-linked
+resolution used `require.resolve(<dir>)`, which ignores the `exports` field for
+absolute directory paths; the real check packages ship `exports` without `main`,
+so every path-linked check failed to load. `linkedEntryFile` now reads the
+package's own `package.json` and resolves the `.` entry from `exports`/`main`.
+
+The four `init.test.ts` failures below remain (the v1-init config gap) — they are
+**not** a V1 regression. `pnpm typecheck`, `pnpm lint`, and the full `pnpm test`
+suite are otherwise green, and `pnpm build` + `check:release-packages` cover 15
+public packages including the new `@sentiness/cli`.
 
 ### Known follow-up: `init` still emits a v1 config (out of V1 plan scope)
 

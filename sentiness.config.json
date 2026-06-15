@@ -1,25 +1,10 @@
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "2.0",
+  "engine": "0.1.4",
   "checks": {
-    "biome": {
-      "enabled": true,
-      "tier": "fast"
-    },
-    "knip": {
-      "enabled": true,
-      "tier": "standard"
-    },
-    "coverage": {
-      "enabled": true,
-      "tier": "slow",
-      "thresholds": {
-        "lineCoverage": 85
-      }
-    },
-    "stryker": {
-      "enabled": true,
-      "tier": "slow"
-    }
+    "biome": { "path": "packages/checks/biome" },
+    "knip": { "path": "packages/checks/knip" },
+    "deps-diff": { "path": "packages/checks/deps-diff" }
   },
   "agents": ["codex"]
 }
