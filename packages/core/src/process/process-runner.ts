@@ -25,12 +25,17 @@ function localBinPaths(cwd: string): readonly string[] {
 function envWithLocalBins(
   cwd: string | undefined,
   extra: Readonly<Record<string, string>> | undefined,
+  binPaths: readonly string[] | undefined,
 ): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env, ...(extra ?? {}) };
-  if (!cwd) {
+  const prefixes: string[] = [...(binPaths ?? [])];
+  if (cwd) {
+    prefixes.push(...localBinPaths(cwd));
+  }
+  if (prefixes.length === 0) {
     return env;
   }
-  const prefix = localBinPaths(cwd).join(delimiter);
+  const prefix = prefixes.join(delimiter);
   env.PATH = env.PATH ? `${prefix}${delimiter}${env.PATH}` : prefix;
   return env;
 }
@@ -62,7 +67,7 @@ export class NodeProcessRunner implements ProcessRunner {
     try {
       const result = await execFileAsync(command, [...args], {
         cwd: options?.cwd,
-        env: envWithLocalBins(options?.cwd, options?.env),
+        env: envWithLocalBins(options?.cwd, options?.env, options?.binPaths),
         signal: options?.signal,
         timeout: options?.timeoutMs,
         maxBuffer: 20 * 1024 * 1024,

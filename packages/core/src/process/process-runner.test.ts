@@ -60,6 +60,23 @@ describe('NodeProcessRunner', () => {
     expect(result.stdout).toContain(join(projectDir, 'node_modules', '.bin'));
   });
 
+  it('prepends binPaths ahead of the cwd node_modules/.bin chain', async () => {
+    const projectDir = await makeProjectDir();
+    const runner = new NodeProcessRunner();
+    const slotBin = join('/slots', 'biome', 'node_modules', '.bin');
+
+    const result = await runner.execFile(process.execPath, [...PRINT_PATH], {
+      cwd: projectDir,
+      binPaths: [slotBin],
+    });
+
+    const entries = result.stdout.split(delimiter);
+    expect(entries[0]).toBe(slotBin);
+    expect(entries.indexOf(slotBin)).toBeLessThan(
+      entries.indexOf(join(projectDir, 'node_modules', '.bin')),
+    );
+  });
+
   it('runs without a cwd and reports non-zero exit codes', async () => {
     const runner = new NodeProcessRunner();
 
