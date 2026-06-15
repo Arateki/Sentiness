@@ -99,6 +99,23 @@ export const DEFAULT_TIERS: Readonly<Record<Tier, TierSettings>> = {
   slow: { triggers: ['pre-push', 'pre-pr', 'manual'], timeoutMs: 600_000 },
 };
 
+/**
+ * A minimal resolved v2 config with no checks and all defaults applied.
+ * Exported for use in tests that need a valid ResolvedConfig fixture without
+ * reading from the filesystem.
+ */
+export const DEFAULT_CONFIG: ResolvedConfig = {
+  schemaVersion: '2.0',
+  engine: '2.0.0',
+  checks: {},
+  zones: [{ path: '.', checks: [] }],
+  tiers: { ...DEFAULT_TIERS },
+  reporting: { compact: false, omitOk: false, warningsAreErrors: false },
+  baseline: { path: '.sentiness/baseline.json' },
+  pending: { path: '.sentiness/pending-feedback.json' },
+  agents: [],
+};
+
 export class ConfigParseError extends Error {
   constructor(message: string, options?: { readonly cause?: unknown }) {
     super(message, options);

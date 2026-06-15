@@ -61,7 +61,9 @@ describe('command registry', () => {
     const pendingPath = '/project/.sentiness/pending-feedback.json';
     const fs = new InMemoryFileSystem({
       '/project/sentiness.config.json': JSON.stringify({
-        schemaVersion: '1.0',
+        schemaVersion: '2.0',
+        engine: '2.0.0',
+        checks: {},
         pending: { path: '.sentiness/pending-feedback.json' },
       }),
       [pendingPath]: JSON.stringify([

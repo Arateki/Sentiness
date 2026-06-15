@@ -76,8 +76,9 @@ describe('doctorCommand', () => {
     writeFileSync(
       join(cwd, 'sentiness.config.json'),
       JSON.stringify({
-        schemaVersion: '1.0',
-        checks: { fake: { enabled: true, tier: 'fast' } },
+        schemaVersion: '2.0',
+        engine: '2.0.0',
+        checks: { fake: { version: '1.0.0' } },
       }),
     );
     const stdout = vi.fn();
@@ -96,8 +97,9 @@ describe('doctorCommand', () => {
     writeFileSync(
       join(cwd, 'sentiness.config.json'),
       JSON.stringify({
-        schemaVersion: '1.0',
-        checks: { fake: { enabled: true, tier: 'fast' } },
+        schemaVersion: '2.0',
+        engine: '2.0.0',
+        checks: { fake: { version: '1.0.0' } },
       }),
     );
 
@@ -114,8 +116,9 @@ describe('doctorCommand', () => {
     writeFileSync(
       join(cwd, 'sentiness.config.json'),
       JSON.stringify({
-        schemaVersion: '1.0',
-        checks: { fake: { enabled: true, tier: 'fast' } },
+        schemaVersion: '2.0',
+        engine: '2.0.0',
+        checks: { fake: { version: '1.0.0' } },
       }),
     );
     const stdout = vi.fn();
@@ -136,8 +139,9 @@ describe('doctorCommand', () => {
     writeFileSync(
       join(cwd, 'sentiness.config.json'),
       JSON.stringify({
-        schemaVersion: '1.0',
-        checks: { fake: { enabled: true, tier: 'fast' } },
+        schemaVersion: '2.0',
+        engine: '2.0.0',
+        checks: { fake: { version: '1.0.0' } },
       }),
     );
 

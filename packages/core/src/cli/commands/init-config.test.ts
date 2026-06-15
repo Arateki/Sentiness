@@ -89,8 +89,9 @@ describe('initConfigCommand', () => {
     writeFileSync(
       join(cwd, 'sentiness.config.json'),
       JSON.stringify({
-        schemaVersion: '1.0',
-        checks: { demo: { enabled: true, tier: 'fast' } },
+        schemaVersion: '2.0',
+        engine: '2.0.0',
+        checks: { demo: { version: '1.0.0' } },
       }),
     );
     const stdout = vi.fn();
@@ -113,8 +114,9 @@ describe('initConfigCommand', () => {
     writeFileSync(
       join(cwd, 'sentiness.config.json'),
       JSON.stringify({
-        schemaVersion: '1.0',
-        checks: { demo: { enabled: true, tier: 'fast' } },
+        schemaVersion: '2.0',
+        engine: '2.0.0',
+        checks: { demo: { version: '1.0.0' } },
       }),
     );
     const stdout = vi.fn();
@@ -137,8 +139,9 @@ describe('initConfigCommand', () => {
     writeFileSync(
       join(cwd, 'sentiness.config.json'),
       JSON.stringify({
-        schemaVersion: '1.0',
-        checks: { demo: { enabled: true, tier: 'fast' } },
+        schemaVersion: '2.0',
+        engine: '2.0.0',
+        checks: { demo: { version: '1.0.0' } },
       }),
     );
 
@@ -153,8 +156,9 @@ describe('initConfigCommand', () => {
     writeFileSync(
       join(cwd, 'sentiness.config.json'),
       JSON.stringify({
-        schemaVersion: '1.0',
-        checks: { demo: { enabled: true, tier: 'fast' } },
+        schemaVersion: '2.0',
+        engine: '2.0.0',
+        checks: { demo: { version: '1.0.0' } },
       }),
     );
     const stdout = vi.fn();
@@ -176,10 +180,11 @@ describe('initConfigCommand', () => {
     writeFileSync(
       join(cwd, 'sentiness.config.json'),
       JSON.stringify({
-        schemaVersion: '1.0',
+        schemaVersion: '2.0',
+        engine: '2.0.0',
         checks: {
-          alpha: { enabled: true, tier: 'fast' },
-          beta: { enabled: true, tier: 'fast' },
+          alpha: { version: '1.0.0' },
+          beta: { version: '1.0.0' },
         },
       }),
     );
@@ -191,7 +196,10 @@ describe('initConfigCommand', () => {
   });
 
   it('returns 1 when --check targets an id that is not enabled', async () => {
-    writeFileSync(join(cwd, 'sentiness.config.json'), JSON.stringify({ schemaVersion: '1.0' }));
+    writeFileSync(
+      join(cwd, 'sentiness.config.json'),
+      JSON.stringify({ schemaVersion: '2.0', engine: '2.0.0', checks: {} }),
+    );
 
     const exit = await initConfigCommand({ check: 'unknown' }, deps());
 

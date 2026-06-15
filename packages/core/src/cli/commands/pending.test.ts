@@ -24,7 +24,8 @@ describe('pendingCommand', () => {
     writeFileSync(
       join(cwd, 'sentiness.config.json'),
       JSON.stringify({
-        schemaVersion: '1.0',
+        schemaVersion: '2.0',
+        engine: '2.0.0',
         checks: {},
         pending: { path: '.sentiness/pending-feedback.json' },
       }),
