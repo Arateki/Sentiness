@@ -24,6 +24,10 @@ const publicPackages = [
     ],
   },
   {
+    dir: 'packages/cli',
+    requiredFiles: ['dist/index.js', 'dist/index.d.ts', 'README.md'],
+  },
+  {
     dir: 'packages/checks/biome',
     requiredFiles: ['dist/index.js', 'dist/index.d.ts', 'README.md'],
   },

@@ -1,0 +1,43 @@
+{
+  "name": "@sentiness/cli",
+  "version": "0.1.0",
+  "description": "Thin global launcher for Sentiness: resolves the pinned engine and dispatches.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Arateki/Sentiness.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://github.com/Arateki/Sentiness#readme",
+  "bugs": "https://github.com/Arateki/Sentiness/issues",
+  "type": "module",
+  "bin": {
+    "sentiness": "./dist/index.js"
+  },
+  "engines": {
+    "node": ">=20.10"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "node ../../scripts/clean-dist.mjs && tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --config ../../vitest.config.base.ts src"
+  },
+  "dependencies": {
+    "@sentiness/check-sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@sentiness/_test-utils": "workspace:*",
+    "typescript": "latest",
+    "vitest": "latest"
+  }
+}
