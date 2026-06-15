@@ -19,16 +19,34 @@ const TierConfigSchema = z.object({
   timeoutMs: z.number().int().positive(),
 });
 
-const CheckConfigSchema = z
+const CatalogCheckEntrySchema = z
   .object({
-    enabled: z.boolean(),
+    version: z.string().min(1).optional(),
+    path: z.string().min(1).optional(),
+    tier: TierSchema.optional(),
+    toolVersion: z.string().min(1).optional(),
+    thresholds: z.record(z.string(), z.union([z.number(), z.string()])).optional(),
+  })
+  .catchall(z.unknown());
+
+const ZoneCheckOverrideSchema = z
+  .object({
+    id: z.string().min(1),
     tier: TierSchema.optional(),
     thresholds: z.record(z.string(), z.union([z.number(), z.string()])).optional(),
   })
   .catchall(z.unknown());
 
+const ZoneEntrySchema = z.object({
+  path: z.string().min(1),
+  checks: z.array(z.union([z.string().min(1), ZoneCheckOverrideSchema])),
+});
+
 const SentinessConfigSchema = z.object({
-  schemaVersion: z.literal('1.0'),
+  schemaVersion: z.literal('2.0'),
+  engine: z.string().min(1),
+  checks: z.record(z.string(), CatalogCheckEntrySchema),
+  zones: z.array(ZoneEntrySchema).optional(),
   tiers: z
     .object({
       fast: TierConfigSchema.partial().optional(),
@@ -36,9 +54,6 @@ const SentinessConfigSchema = z.object({
       slow: TierConfigSchema.partial().optional(),
     })
     .optional(),
-  checks: z.record(z.string(), CheckConfigSchema).optional(),
-  baseline: z.object({ path: z.string().min(1) }).optional(),
-  pending: z.object({ path: z.string().min(1) }).optional(),
   reporting: z
     .object({
       compact: z.boolean().optional(),
@@ -46,81 +61,42 @@ const SentinessConfigSchema = z.object({
       warningsAreErrors: z.boolean().optional(),
     })
     .optional(),
+  baseline: z.object({ path: z.string().min(1) }).optional(),
+  pending: z.object({ path: z.string().min(1) }).optional(),
   agents: z.array(AgentSchema).optional(),
 });
 
 const JsConfigModuleSchema = z.object({ default: z.unknown() });
 
 export type Trigger = z.infer<typeof TriggerSchema>;
+export type CatalogCheckEntry = z.infer<typeof CatalogCheckEntrySchema>;
+export type ZoneCheckOverride = z.infer<typeof ZoneCheckOverrideSchema>;
+export type ZoneEntry = z.infer<typeof ZoneEntrySchema>;
+export type SentinessConfigV2 = z.infer<typeof SentinessConfigSchema>;
 
-export type CheckConfig = {
-  readonly enabled: boolean;
-  readonly tier?: Tier;
-  readonly thresholds?: Readonly<Record<string, number | string>>;
-  readonly [key: string]: unknown;
-};
-
-export type SentinessConfig = {
-  readonly schemaVersion: '1.0';
-  readonly tiers?: {
-    readonly fast?: Partial<TierSettings>;
-    readonly standard?: Partial<TierSettings>;
-    readonly slow?: Partial<TierSettings>;
-  };
-  readonly checks?: Readonly<Record<string, CheckConfig>>;
-  readonly baseline?: { readonly path: string };
-  readonly pending?: { readonly path: string };
-  readonly reporting?: {
-    readonly compact?: boolean;
-    readonly omitOk?: boolean;
-    readonly warningsAreErrors?: boolean;
-  };
-  readonly agents?: readonly (
-    | 'claude-code'
-    | 'claude-code-skill'
-    | 'codex'
-    | 'codex-skill'
-    | 'gemini'
-  )[];
-};
-
-export type TierSettings = {
-  readonly triggers: readonly Trigger[];
-  readonly timeoutMs: number;
-};
+export type TierSettings = { readonly triggers: readonly Trigger[]; readonly timeoutMs: number };
+export type Agent = z.infer<typeof AgentSchema>;
 
 export type ResolvedConfig = {
-  readonly schemaVersion: '1.0';
+  readonly schemaVersion: '2.0';
+  readonly engine: string;
+  readonly checks: Readonly<Record<string, CatalogCheckEntry>>;
+  readonly zones: readonly ZoneEntry[];
   readonly tiers: Readonly<Record<Tier, TierSettings>>;
-  readonly checks: Readonly<Record<string, CheckConfig>>;
-  readonly baseline: { readonly path: string };
-  readonly pending: { readonly path: string };
   readonly reporting: {
     readonly compact: boolean;
     readonly omitOk: boolean;
     readonly warningsAreErrors: boolean;
   };
-  readonly agents: readonly (
-    | 'claude-code'
-    | 'claude-code-skill'
-    | 'codex'
-    | 'codex-skill'
-    | 'gemini'
-  )[];
+  readonly baseline: { readonly path: string };
+  readonly pending: { readonly path: string };
+  readonly agents: readonly Agent[];
 };
 
-export const DEFAULT_CONFIG: ResolvedConfig = {
-  schemaVersion: '1.0',
-  tiers: {
-    fast: { triggers: ['post-edit', 'pre-commit'], timeoutMs: 30_000 },
-    standard: { triggers: ['pre-done'], timeoutMs: 120_000 },
-    slow: { triggers: ['pre-push', 'pre-pr', 'manual'], timeoutMs: 600_000 },
-  },
-  checks: {},
-  baseline: { path: '.sentiness/baseline.json' },
-  pending: { path: '.sentiness/pending-feedback.json' },
-  reporting: { compact: false, omitOk: false, warningsAreErrors: false },
-  agents: [],
+export const DEFAULT_TIERS: Readonly<Record<Tier, TierSettings>> = {
+  fast: { triggers: ['post-edit', 'pre-commit'], timeoutMs: 30_000 },
+  standard: { triggers: ['pre-done'], timeoutMs: 120_000 },
+  slow: { triggers: ['pre-push', 'pre-pr', 'manual'], timeoutMs: 600_000 },
 };
 
 export class ConfigParseError extends Error {
@@ -143,10 +119,67 @@ function normalizeZodError(error: z.ZodError): string {
     .join('; ');
 }
 
-function validateNoDuplicateTriggers(config: ResolvedConfig): void {
+function zoneCheckId(entry: string | ZoneCheckOverride): string {
+  return typeof entry === 'string' ? entry : entry.id;
+}
+
+function validateCrossFields(config: SentinessConfigV2): void {
+  for (const [id, entry] of Object.entries(config.checks)) {
+    const hasVersion = entry.version !== undefined;
+    const hasPath = entry.path !== undefined;
+    if (hasVersion === hasPath) {
+      throw new ConfigParseError(`checks.${id}: exactly one of "version" or "path" is required`);
+    }
+  }
+  const seenZonePaths = new Set<string>();
+  for (const zone of config.zones ?? []) {
+    if (seenZonePaths.has(zone.path)) {
+      throw new ConfigParseError(`Duplicate zone path "${zone.path}"`);
+    }
+    seenZonePaths.add(zone.path);
+    for (const entry of zone.checks) {
+      const id = zoneCheckId(entry);
+      if (!(id in config.checks)) {
+        throw new ConfigParseError(`Zone "${zone.path}" references unknown check id "${id}"`);
+      }
+    }
+  }
+}
+
+export function validateConfig(input: unknown): SentinessConfigV2 {
+  if (
+    typeof input === 'object' &&
+    input !== null &&
+    (input as { schemaVersion?: unknown }).schemaVersion === '1.0'
+  ) {
+    throw new ConfigParseError(
+      'schemaVersion "1.0" is no longer supported — run `sentiness init` to migrate to v2',
+    );
+  }
+  const parsed = SentinessConfigSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new ConfigParseError(normalizeZodError(parsed.error), { cause: parsed.error });
+  }
+  validateCrossFields(parsed.data);
+  return parsed.data;
+}
+
+type PartialTierOverride = {
+  readonly triggers?: readonly Trigger[] | undefined;
+  readonly timeoutMs?: number | undefined;
+};
+
+function mergeTier(base: TierSettings, override: PartialTierOverride | undefined): TierSettings {
+  return {
+    triggers: override?.triggers ?? base.triggers,
+    timeoutMs: override?.timeoutMs ?? base.timeoutMs,
+  };
+}
+
+function validateNoDuplicateTriggers(tiers: Readonly<Record<Tier, TierSettings>>): void {
   const seen = new Map<Trigger, Tier>();
   for (const tier of ['fast', 'standard', 'slow'] as const) {
-    for (const trigger of config.tiers[tier].triggers) {
+    for (const trigger of tiers[tier].triggers) {
       const previous = seen.get(trigger);
       if (previous) {
         throw new ConfigParseError(
@@ -158,45 +191,31 @@ function validateNoDuplicateTriggers(config: ResolvedConfig): void {
   }
 }
 
-function mergeTier(
-  defaultTier: TierSettings,
-  userTier: Partial<TierSettings> | undefined,
-): TierSettings {
+export function resolveConfig(config: SentinessConfigV2): ResolvedConfig {
+  const tiers: Record<Tier, TierSettings> = {
+    fast: mergeTier(DEFAULT_TIERS.fast, config.tiers?.fast),
+    standard: mergeTier(DEFAULT_TIERS.standard, config.tiers?.standard),
+    slow: mergeTier(DEFAULT_TIERS.slow, config.tiers?.slow),
+  };
+  validateNoDuplicateTriggers(tiers);
+  const zones: readonly ZoneEntry[] = config.zones ?? [
+    { path: '.', checks: Object.keys(config.checks) },
+  ];
   return {
-    triggers: userTier?.triggers ?? defaultTier.triggers,
-    timeoutMs: userTier?.timeoutMs ?? defaultTier.timeoutMs,
-  };
-}
-
-export function validateConfig(input: unknown): SentinessConfig {
-  const parsed = SentinessConfigSchema.safeParse(input);
-  if (!parsed.success) {
-    throw new ConfigParseError(normalizeZodError(parsed.error), { cause: parsed.error });
-  }
-  return parsed.data as SentinessConfig;
-}
-
-export function resolveConfig(config: SentinessConfig): ResolvedConfig {
-  const resolved: ResolvedConfig = {
-    schemaVersion: '1.0',
-    tiers: {
-      fast: mergeTier(DEFAULT_CONFIG.tiers.fast, config.tiers?.fast),
-      standard: mergeTier(DEFAULT_CONFIG.tiers.standard, config.tiers?.standard),
-      slow: mergeTier(DEFAULT_CONFIG.tiers.slow, config.tiers?.slow),
-    },
-    checks: { ...DEFAULT_CONFIG.checks, ...(config.checks ?? {}) },
-    baseline: { path: config.baseline?.path ?? DEFAULT_CONFIG.baseline.path },
-    pending: { path: config.pending?.path ?? DEFAULT_CONFIG.pending.path },
+    schemaVersion: '2.0',
+    engine: config.engine,
+    checks: config.checks,
+    zones,
+    tiers,
     reporting: {
-      compact: config.reporting?.compact ?? DEFAULT_CONFIG.reporting.compact,
-      omitOk: config.reporting?.omitOk ?? DEFAULT_CONFIG.reporting.omitOk,
-      warningsAreErrors:
-        config.reporting?.warningsAreErrors ?? DEFAULT_CONFIG.reporting.warningsAreErrors,
+      compact: config.reporting?.compact ?? false,
+      omitOk: config.reporting?.omitOk ?? false,
+      warningsAreErrors: config.reporting?.warningsAreErrors ?? false,
     },
-    agents: config.agents ?? DEFAULT_CONFIG.agents,
+    baseline: { path: config.baseline?.path ?? '.sentiness/baseline.json' },
+    pending: { path: config.pending?.path ?? '.sentiness/pending-feedback.json' },
+    agents: config.agents ?? [],
   };
-  validateNoDuplicateTriggers(resolved);
-  return resolved;
 }
 
 async function loadJsConfig(path: string, fs: FileSystem): Promise<unknown> {
@@ -208,11 +227,9 @@ async function loadJsConfig(path: string, fs: FileSystem): Promise<unknown> {
 export async function loadConfig(cwd: string, fs: FileSystem): Promise<ResolvedConfig> {
   const jsPath = join(cwd, 'sentiness.config.js');
   const jsonPath = join(cwd, 'sentiness.config.json');
-
   if (await fs.exists(jsPath)) {
     return resolveConfig(validateConfig(await loadJsConfig(jsPath, fs)));
   }
-
   if (await fs.exists(jsonPath)) {
     try {
       return resolveConfig(validateConfig(JSON.parse(await fs.readFile(jsonPath))));
@@ -225,7 +242,6 @@ export async function loadConfig(cwd: string, fs: FileSystem): Promise<ResolvedC
       throw error;
     }
   }
-
   throw new ConfigNotFoundError(cwd);
 }
 
