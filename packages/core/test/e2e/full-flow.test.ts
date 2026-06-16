@@ -1,8 +1,8 @@
 import { execFile, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
@@ -141,21 +141,45 @@ function parseJson(stdout: string): unknown {
   return JSON.parse(stdout.trim());
 }
 
+// v2 config: each check is path-linked directly to the repo's built check
+// package (relative to the project dir), so the engine resolves it without a
+// cache or any project node_modules. The check's external tool (e.g. biome)
+// still resolves from the inherited PATH via `cliEnv` (rootBinPath).
+function buildV2Config(
+  projectDir: string,
+  checks: readonly CheckPackageId[],
+  perCheck: Partial<Record<CheckPackageId, Record<string, unknown>>> = {},
+): Record<string, unknown> {
+  return {
+    schemaVersion: '2.0',
+    engine: '0.1.4',
+    checks: Object.fromEntries(
+      checks.map((id) => [
+        id,
+        { path: relative(projectDir, checkPackages[id]), ...(perCheck[id] ?? {}) },
+      ]),
+    ),
+  };
+}
+
+async function writeConfig(projectDir: string, config: Record<string, unknown>): Promise<void> {
+  await writeFile(
+    join(projectDir, 'sentiness.config.json'),
+    `${JSON.stringify(config, null, 2)}\n`,
+  );
+}
+
 async function createDemoCopy(
   source: string,
   checks: readonly CheckPackageId[] = ['biome'],
+  perCheck: Partial<Record<CheckPackageId, Record<string, unknown>>> = {},
 ): Promise<string> {
   const tempRoot = await mkdtemp(join(tmpdir(), 'sentiness-e2e-'));
   cleanupPaths.push(tempRoot);
   const projectDir = join(tempRoot, 'demo-project');
   await cp(demoProject, projectDir, { recursive: true });
   await writeFile(join(projectDir, 'src/index.ts'), source);
-
-  const sentinessScope = join(projectDir, 'node_modules/@sentiness');
-  await mkdir(sentinessScope, { recursive: true });
-  for (const check of checks) {
-    await symlink(checkPackages[check], join(sentinessScope, `check-${check}`), 'dir');
-  }
+  await writeConfig(projectDir, buildV2Config(projectDir, checks, perCheck));
 
   return projectDir;
 }
@@ -251,17 +275,6 @@ describe('Sentiness CLI E2E full flow', () => {
 
   it('flags a missing tool config in doctor and writes it through init-config', async () => {
     const projectDir = await createDemoCopy('export const value = 1;\n', ['dependency-cruiser']);
-    await writeFile(
-      join(projectDir, 'sentiness.config.json'),
-      `${JSON.stringify(
-        {
-          schemaVersion: '1.0',
-          checks: { 'dependency-cruiser': { enabled: true } },
-        },
-        null,
-        2,
-      )}\n`,
-    );
 
     const before = await runCli(projectDir, ['doctor']);
     const beforeDoctor = DoctorResultSchema.parse(parseJson(before.stdout));
@@ -458,25 +471,10 @@ describe('Sentiness CLI E2E full flow', () => {
   });
 
   it('ratchets metric baselines through baseline update', async () => {
-    const projectDir = await createDemoCopy('export const value = 1;\nexport const other = 2;\n', [
-      'coverage',
-    ]);
-    await writeFile(
-      join(projectDir, 'sentiness.config.json'),
-      `${JSON.stringify(
-        {
-          schemaVersion: '1.0',
-          checks: {
-            coverage: {
-              enabled: true,
-              tier: 'slow',
-              thresholds: { lineCoverage: 0 },
-            },
-          },
-        },
-        null,
-        2,
-      )}\n`,
+    const projectDir = await createDemoCopy(
+      'export const value = 1;\nexport const other = 2;\n',
+      ['coverage'],
+      { coverage: { tier: 'slow', thresholds: { lineCoverage: 0 } } },
     );
     await writeCoverageReport(projectDir, [1, 0]);
     await initGitRepo(projectDir);
@@ -565,7 +563,9 @@ describe('Sentiness CLI E2E full flow', () => {
     const gitignore = await readFile(join(projectDir, '.gitignore'), 'utf8');
 
     expect(result.exitCode).toBe(0);
-    expect(config.checks).toEqual({ biome: { enabled: true, tier: 'fast' } });
+    expect(config.schemaVersion).toBe('2.0');
+    expect(typeof config.engine).toBe('string');
+    expect(config.checks).toEqual({ biome: { version: '*', tier: 'fast' } });
     expect(config.reporting.omitOk).toBe(true);
     expect(gitignore).toContain('.sentiness/jobs/');
     expect(gitignore).toContain('.sentiness/pending-feedback.json');
