@@ -53,8 +53,24 @@ TV2.4, minus zone detection):
   `OnboardingPlan.installedDependencies` (v1 node_modules model) and their tests.
 
 The four previously-red `init.test.ts` cases (skill install → `loadConfig`
-rejecting v1) are green. **Zone detection** (multi-ecosystem monorepos →
-`zones[]`) remains the rest of TV2.4, deferred to the V2 phase proper.
+rejecting v1) are green.
+
+### TV2.4 zone detection — done (2026-06-15)
+
+`buildOnboardingPlanV2` (in `init-plan.ts`) walks the repo (bounded depth,
+skipping `node_modules`/`target`/`dist`/… and dotdirs) for ecosystem markers:
+`Cargo.toml` → rust, `go.mod` → go, `package.json` → node (rust/go win over an
+incidental `package.json`). The root is always a candidate zone and always
+descended into so sibling crates/modules are found; a marked subdir becomes its
+own zone and is not descended into. Nested node packages fold into the single
+root node zone, so a plain node monorepo stays single-zone.
+
+`init` writes an explicit `zones[]` block only when more than one zone is
+detected (single-ecosystem projects omit it; the loader normalizes that to one
+root zone). Per-zone `checks` are the enabled catalog ids the zone owns (`clippy`
+→ rust zones, every other check → node zones). Rust zones recommend `clippy`
+(the only non-JS check in v2); go zones are recorded with no checks yet. The
+generated polyglot config validates against the v2 schema (asserted in tests).
 
 ### Still deferred: `pnpm test:e2e` (out of this scope, spec task TV4.3)
 

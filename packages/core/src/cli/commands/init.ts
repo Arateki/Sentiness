@@ -2,7 +2,7 @@ import { isAbsolute, join } from 'node:path';
 import { SENTINESS_VERSION } from '../../version.js';
 import { Prompter } from '../wizard/prompts.js';
 import { baselineInitCommand } from './baseline.js';
-import { buildOnboardingPlan } from './init-plan.js';
+import { buildOnboardingPlan, buildOnboardingPlanV2, type Ecosystem } from './init-plan.js';
 import {
   formatGeneratedConfig,
   installAgentSkills,
@@ -56,6 +56,12 @@ function ignoreBlock(entries: readonly string[]): string {
 
 function optionalString(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
+}
+
+// Which detected zone an enabled catalog check belongs to. `clippy` is the only
+// Rust check in v2; every other check is a JS-ecosystem check placed in node zones.
+function zoneOwnsCheck(ecosystem: Ecosystem, checkId: string): boolean {
+  return checkId === 'clippy' ? ecosystem === 'rust' : ecosystem === 'node';
 }
 
 function enabledCheckSet(args: ParsedArgs): ReadonlySet<string> | undefined {
@@ -129,8 +135,15 @@ export async function initCommand(args: ParsedArgs, deps: CommandDeps): Promise<
       deps.logger.info(`Detected AI agents: ${plan.detectedAgents.join(', ')}`);
     }
 
+    const planV2 = await buildOnboardingPlanV2(deps.cwd, deps.fs);
+    const isMultiZone = planV2.zones.length > 1;
+    if (isMultiZone) {
+      const summary = planV2.zones.map((zone) => `${zone.path} (${zone.ecosystem})`).join(', ');
+      deps.logger.info(`Detected ${planV2.zones.length} zones: ${summary}`);
+    }
+
     const checks: Record<string, unknown> = {};
-    for (const check of plan.checks) {
+    for (const check of planV2.catalog) {
       const enabled = await confirm(
         `Enable ${check.label}?`,
         check.recommended,
@@ -169,10 +182,22 @@ export async function initCommand(args: ParsedArgs, deps: CommandDeps): Promise<
       agents = wanted ? candidates : [];
     }
 
+    // A single-ecosystem project omits `zones` (the loader normalizes it to one
+    // root zone with every catalog id). A polyglot monorepo writes the explicit
+    // zone placement so each subdir runs only its own checks.
+    const enabledCheckIds = Object.keys(checks);
+    const zones = isMultiZone
+      ? planV2.zones.map((zone) => ({
+          path: zone.path,
+          checks: enabledCheckIds.filter((id) => zoneOwnsCheck(zone.ecosystem, id)),
+        }))
+      : undefined;
+
     const config = {
       schemaVersion: '2.0',
       engine: SENTINESS_VERSION,
       checks,
+      ...(zones ? { zones } : {}),
       baseline: { path: '.sentiness/baseline.json' },
       pending: { path: '.sentiness/pending-feedback.json' },
       reporting: { compact: false, omitOk: true, warningsAreErrors: false },

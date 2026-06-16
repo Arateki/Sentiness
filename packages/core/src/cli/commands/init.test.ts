@@ -6,6 +6,7 @@ import {
   SilentLogger,
 } from '@sentiness/_test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { validateConfig } from '../../config/config.js';
 import { initCommand } from './init.js';
 import type { CommandDeps } from './types.js';
 
@@ -94,9 +95,30 @@ describe('initCommand', () => {
     // Each catalog entry declares exactly one of version/path (v2 contract).
     expect(config.checks.biome.version).toBe('*');
     expect(config.checks.biome.path).toBeUndefined();
+    // A single-ecosystem project omits the zones block (single root zone).
+    expect(config.zones).toBeUndefined();
+    expect(() => validateConfig(config)).not.toThrow();
 
     const gitignore = await fs.readFile('/project/.gitignore');
     expect(gitignore).toContain('.sentiness/jobs/');
+  });
+
+  it('writes an explicit zones block for a polyglot (node+rust) monorepo', async () => {
+    const fs = pnpmProject({ '/project/crates/app/Cargo.toml': '[package]\nname = "app"\n' });
+    const deps = makeDeps(fs);
+
+    const exitCode = await initCommand({ yes: true, baseline: false }, deps);
+
+    expect(exitCode).toBe(0);
+    const config = JSON.parse(await fs.readFile('/project/sentiness.config.json'));
+    const byPath = new Map(
+      (config.zones as Array<{ path: string; checks: string[] }>).map((zone) => [zone.path, zone]),
+    );
+    expect(byPath.has('.')).toBe(true);
+    expect(byPath.get('crates/app')?.checks).toEqual(['clippy']);
+    // clippy must be in the catalog the rust zone references.
+    expect(config.checks.clippy).toBeDefined();
+    expect(() => validateConfig(config)).not.toThrow();
   });
 
   it('runs `sentiness install` to resolve checks on consent, never `<pm> add -D`', async () => {
