@@ -1,11 +1,6 @@
 import { InMemoryFileSystem } from '@sentiness/_test-utils';
 import { describe, expect, it } from 'vitest';
-import {
-  buildOnboardingPlan,
-  type CheckRecommendation,
-  missingPackagesFor,
-  type TestRunner,
-} from './init-plan.js';
+import { buildOnboardingPlan, type CheckRecommendation, type TestRunner } from './init-plan.js';
 
 function fsWith(files: Record<string, string>): InMemoryFileSystem {
   return new InMemoryFileSystem(files);
@@ -152,34 +147,5 @@ describe('buildOnboardingPlan', () => {
       }),
     );
     expect(plan.detectedAgents).toEqual(['codex-skill']);
-  });
-});
-
-describe('missingPackagesFor', () => {
-  it('lists the check package and its npm tool when both are absent', () => {
-    const missing = missingPackagesFor(['biome', 'coverage'], new Set());
-    expect(missing).toEqual([
-      '@sentiness/check-biome',
-      '@biomejs/biome',
-      '@sentiness/check-coverage',
-    ]);
-  });
-
-  it('skips packages that are already installed', () => {
-    const missing = missingPackagesFor(
-      ['biome'],
-      new Set(['@sentiness/check-biome', '@biomejs/biome']),
-    );
-    expect(missing).toEqual([]);
-  });
-
-  it('does not list npm packages for non-npm tools', () => {
-    const missing = missingPackagesFor(['osv-scanner', 'semgrep'], new Set());
-    expect(missing).toEqual(['@sentiness/check-osv-scanner', '@sentiness/check-semgrep']);
-  });
-
-  it('lists eslint as the npm tool for the eslint check', () => {
-    const missing = missingPackagesFor(['eslint'], new Set());
-    expect(missing).toEqual(['@sentiness/check-eslint', 'eslint']);
   });
 });

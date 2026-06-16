@@ -24,36 +24,45 @@ absolute directory paths; the real check packages ship `exports` without `main`,
 so every path-linked check failed to load. `linkedEntryFile` now reads the
 package's own `package.json` and resolves the `.` entry from `exports`/`main`.
 
-The four `init.test.ts` failures below remain (the v1-init config gap) — they are
-**not** a V1 regression. `pnpm typecheck`, `pnpm lint`, and the full `pnpm test`
-unit suite are otherwise green, and `pnpm build` + `check:release-packages` cover
+`pnpm typecheck`, `pnpm lint`, and the full `pnpm test` unit suite are green
+(`@sentiness/core`: 203 tests), and `pnpm build` + `check:release-packages` cover
 15 public packages including the new `@sentiness/cli`.
 
-Two pre-existing suites stay red as v2-migration debt that is **out of V1 scope**
-(both predate this session — the config v2 rewrite in Task 1 broke them, and full
-E2E is spec task TV4.3, deferred to V4):
+### `init` v2 migration — done (2026-06-15)
 
-1. `init.test.ts` — `sentiness init` still emits a v1 config (see the follow-up
-   below). Migrating it needs a product decision on how it pins the engine and
-   per-check versions.
-2. `pnpm test:e2e` (`packages/core/test/e2e/full-flow.test.ts`) — runs the built
-   CLI against `examples/demo-project`, whose `sentiness.config.json` is still v1
-   and whose checks resolve from `node_modules`. Both the demo config and the
-   assertions need a v2 rewrite (path-linked or version+cache), which belongs to
-   the V4 E2E plan, not V1.
+`sentiness init` now emits a **v2 single-root config** (the core of spec task
+TV2.4, minus zone detection):
 
-### Known follow-up: `init` still emits a v1 config (out of V1 plan scope)
+- `schemaVersion: '2.0'`, `engine: SENTINESS_VERSION` (the CLI's own version,
+  pinned exact), and each enabled check written as a catalog entry
+  `{ version: '*', tier }`. `'*'` means "latest"; `sentiness install` resolves it
+  to an exact version and pins it in `sentiness.lock` (the npm-style range-in-
+  config / exact-in-lock split). `engine` is exact so `LockManager.satisfies`
+  accepts it; `'*'` satisfies any concrete locked version, whereas `'latest'`
+  would not (`rangeSatisfied` only treats `*`/`x`/`>=` as "any").
+  - *Deviation from the TV2.4 letter* ("version = the latest published version"):
+    init writes the `'*'` range instead of resolving each check's exact latest at
+    init time, avoiding a per-check `npm view` before `install` runs. The lock
+    still carries the exact version, so the end state is equivalent.
+- The v1 `<pm> add -D` step is gone (no project `node_modules` in v2). After
+  writing + formatting the config, init runs `installCommand({ frozen: false })`
+  with consent (`--install` / interactive prompt; `--yes` without `--install`
+  resolves nothing), which resolves ranges → writes the lock → warms the global
+  cache. A resolution failure warns and continues (never fatal to init).
+- Removed the now-dead `installMissingPackages` / `missingPackagesFor` /
+  `OnboardingPlan.installedDependencies` (v1 node_modules model) and their tests.
 
-The config rewrite to schema v2 (Task 1) left `sentiness init` generating
-`schemaVersion: '1.0'` with `checks: { [id]: { enabled, tier } }`. The v2 loader
-rejects this (v2 requires `engine` + each check entry to declare exactly one of
-`version`/`path`), so the four `init.test.ts` cases that install agent skills
-(which call `loadConfig`) fail. This predates Phase V1 and is **not** a task in
-the V1 plan (the V1 dogfood, Task 8, hand-writes the config). Migrating the init
-wizard to v2 needs a product decision on how it pins the `engine` and per-check
-versions (likely: write ranges, then resolve+lock via `sentiness install`), so it
-belongs to a later phase/plan. Tracked here so the red `init.test.ts` is not
-mistaken for a Phase V1 regression.
+The four previously-red `init.test.ts` cases (skill install → `loadConfig`
+rejecting v1) are green. **Zone detection** (multi-ecosystem monorepos →
+`zones[]`) remains the rest of TV2.4, deferred to the V2 phase proper.
+
+### Still deferred: `pnpm test:e2e` (out of this scope, spec task TV4.3)
+
+`pnpm test:e2e` (`packages/core/test/e2e/full-flow.test.ts`) runs the built CLI
+against `examples/demo-project`, whose `sentiness.config.json` is still v1 and
+whose checks resolve from `node_modules`. Migrating the demo config + the harness
+to the v2 cache/`install` model is a larger rewrite that belongs to the V4 E2E
+plan; left as-is here to keep this change focused on `init`.
 
 ## Implementation approach
 

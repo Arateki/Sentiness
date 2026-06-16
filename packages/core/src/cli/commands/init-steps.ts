@@ -1,5 +1,5 @@
 import type { Logger } from '@sentiness/check-sdk';
-import { missingPackagesFor, type OnboardingPlan } from './init-plan.js';
+import { installCommand } from './install.js';
 import { installHooksCommand } from './install-hooks.js';
 import { installSkillCommand } from './install-skill.js';
 import type { CommandDeps, ParsedArgs } from './types.js';
@@ -11,13 +11,6 @@ const KNOWN_AGENTS = [
   'codex-skill',
   'gemini',
 ] as const;
-
-const NON_NPM_TOOL_HINTS: Readonly<Record<string, string>> = {
-  'osv-scanner':
-    'osv-scanner is not an npm package; install it from https://google.github.io/osv-scanner/installation/',
-  semgrep:
-    'semgrep is not an npm package; install it from https://semgrep.dev/docs/getting-started/cli/',
-};
 
 export function parseAgentSelection(value: unknown, logger: Logger): readonly string[] {
   if (typeof value !== 'string' || value === 'none') {
@@ -38,44 +31,23 @@ export function parseAgentSelection(value: unknown, logger: Logger): readonly st
   return selected;
 }
 
-export async function installMissingPackages(
-  plan: OnboardingPlan,
-  enabledCheckIds: readonly string[],
-  shouldInstall: (command: string) => Promise<boolean>,
-  deps: CommandDeps,
-): Promise<void> {
-  for (const id of enabledCheckIds) {
-    const hint = NON_NPM_TOOL_HINTS[id];
-    if (hint) {
-      deps.logger.info(hint);
+// v2 has no project node_modules: instead of `<pm> add -D`, init resolves the
+// catalog's version ranges against the registry, writes `sentiness.lock`, and
+// warms the global cache via `sentiness install`. A failure here is never fatal
+// to init — the user can re-run `sentiness install` later.
+export async function runCheckInstall(deps: CommandDeps): Promise<void> {
+  try {
+    const code = await installCommand({ frozen: false }, deps);
+    if (code !== 0) {
+      deps.logger.warn(
+        'Check resolution did not complete; run `sentiness install` later to cache the checks.',
+      );
     }
-  }
-
-  const missing = missingPackagesFor(enabledCheckIds, plan.installedDependencies);
-  if (missing.length === 0) {
-    return;
-  }
-  const command = `${plan.packageManager} add -D ${missing.join(' ')}`;
-  if (plan.packageManager === 'unknown') {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     deps.logger.warn(
-      `Package manager not detected; install the missing packages manually: <pm> add -D ${missing.join(' ')}`,
+      `Failed to resolve checks (${message}); run \`sentiness install\` later to cache them.`,
     );
-    return;
-  }
-  if (!(await shouldInstall(command))) {
-    deps.logger.info(`Skipped package installation. Install manually with: ${command}`);
-    return;
-  }
-  deps.logger.info(`Running: ${command}`);
-  const result = await deps.processRunner.execFile(plan.packageManager, ['add', '-D', ...missing], {
-    cwd: deps.cwd,
-  });
-  if (result.exitCode !== 0) {
-    deps.logger.warn(
-      `Package installation failed (exit ${result.exitCode}); continuing. Install manually with: ${command}`,
-    );
-  } else {
-    deps.logger.info(`Installed ${missing.length} package(s).`);
   }
 }
 
