@@ -1,15 +1,79 @@
-# Sentiness
+<p align="center">
+  <img src="docs/assets/sentiness.png" alt="Sentiness" width="180" />
+</p>
+
+<h1 align="center">Sentiness</h1>
+
+<p align="center">
+  One normalized JSON quality report for AI coding agents and CI.
+</p>
 
 Sentiness is a Node.js CLI that runs code-quality checks and emits one normalized JSON report
 for AI coding agents and CI. It is baseline-aware, tier-based, and designed so agents can ask one
 question before declaring work complete: what is still wrong in this codebase?
 
-Current repository status: the core CLI, baseline workflows, background jobs, agent instruction
-adapters, and the Biome, Knip, Coverage, Stryker, dependency-cruiser, deps-diff, lockfile-lint,
-OSV Scanner, jscpd, and Semgrep checks are implemented and tested locally. Commands below
-distinguish between this checkout and a target project using an installed `sentiness` binary.
+Implemented checks: Biome, ESLint, Knip, Coverage, Stryker, dependency-cruiser, deps-diff,
+lockfile-lint, OSV Scanner, jscpd, Semgrep, and Playwright (E2E with screenshot/trace paths for
+multimodal agents). Each check is a separate `@sentiness/check-<id>` package; the core never parses
+tool-specific formats.
+
+## How It Works (v2 global model)
+
+Sentiness installs once, globally, like the Claude Code CLI — the target project keeps **zero
+`node_modules`**. A thin launcher (`@sentiness/cli`) owns the `sentiness` binary, resolves the
+version-pinned engine and checks into a global cache (`~/.sentiness/cache/`), and runs them against
+your project. A project only commits universal files:
+
+| File | Purpose | Committed |
+|---|---|---|
+| `sentiness.config.json` | Intent: engine pin, checks catalog (version ranges), optional zones | Yes |
+| `sentiness.lock` | Exact resolved versions + integrity (determinism) | Yes |
+| `.sentiness/baseline.json` | Suppressed pre-existing findings + metric baselines | Yes |
+| `CLAUDE.md` / `.claude/skills/sentiness/SKILL.md` / … | Agent instructions | Yes |
+
+`sentiness.config.json` declares intent (which engine, which checks at which version range, which
+zones); `sentiness install` resolves those ranges to exact versions, writes `sentiness.lock`, and
+warms the cache. `sentiness install --frozen` (for CI) materializes exactly the lock.
+
+## Add Sentiness To A Project
+
+```sh
+npm i -g @sentiness/cli
+sentiness init        # detect the stack, recommend checks, write config + lock, warm the cache
+sentiness install     # (re)resolve the catalog and materialize the cache
+sentiness check       # run the checks and print the normalized report JSON
+```
+
+`init` detects your stack (package manager, TypeScript, test runner, Playwright, agent instruction
+files), recommends checks accordingly, and — on consent or with `--install` — runs `install` to
+resolve the catalog and warm the cache. For a polyglot monorepo it detects per-directory ecosystems
+(`package.json` → node, `Cargo.toml` → rust, `go.mod` → go) and writes an explicit `zones[]` block;
+a single-ecosystem project omits it. `init` also creates the `.sentiness/` runtime directories and
+updates `.gitignore` for local job/cache files.
+
+Fully non-interactive:
+
+```sh
+sentiness init --yes --checks=biome,knip --install --skill=claude-code-skill --hooks
+```
+
+Each step is also available as its own command:
+
+```sh
+sentiness init --yes --checks=biome --no-baseline
+sentiness install
+sentiness doctor
+sentiness baseline init
+sentiness check --tier=fast --compact
+sentiness install-hooks --push
+sentiness install-skill --agent=codex
+```
+
+`baseline init` records existing findings so adoption does not block on pre-existing debt.
 
 ## Quick Start In This Checkout
+
+This repository dogfoods Sentiness on its own code with a v2 config and a committed `sentiness.lock`:
 
 ```sh
 pnpm install
@@ -18,49 +82,18 @@ pnpm sentiness doctor
 pnpm sentiness check --tier=fast --compact
 ```
 
-`doctor` may return a non-zero exit code if optional external tools such as `knip`, Stryker,
-dependency-cruiser, lockfile-lint, OSV Scanner, jscpd, or Semgrep are not installed in this local
-checkout. That means Sentiness is running and reporting the missing tooling; use the JSON/text output
-to decide which package to install for the checks you enabled.
-
-## Add Sentiness To A Project
-
-The packages are published on npm under the `@sentiness` scope. Install the core CLI and run the
-one-command onboarding — it detects your stack, recommends checks, and (on consent, or with
-`--install`) installs the matching `@sentiness/check-*` packages and npm tools for you:
-
-```sh
-pnpm add -D @sentiness/core
-pnpm exec sentiness init
-```
-
-Fully non-interactive:
-
-```sh
-pnpm exec sentiness init --yes --checks=biome,knip --install --skill=claude-code-skill --hooks
-```
-
-Each step is also available as its own command:
-
-```sh
-sentiness init --yes --checks=biome --no-baseline
-sentiness doctor
-sentiness baseline init
-sentiness check --tier=fast --compact
-sentiness install-hooks --push
-sentiness install-skill --agent=codex
-```
-
-`init` writes `sentiness.config.json`, creates `.sentiness/` runtime directories, and updates
-`.gitignore` for local job/cache files. `baseline init` records existing findings so adoption does
-not block on pre-existing debt.
+`doctor` may return a non-zero exit code if optional external tools (e.g. `knip`, Stryker,
+dependency-cruiser, lockfile-lint, OSV Scanner, jscpd, Semgrep) are not available. That means
+Sentiness is running and reporting the missing tooling; use the JSON/text output to decide what to
+install for the checks you enabled.
 
 ## What The CLI Provides
 
 | Command | Purpose |
 |---|---|
-| `sentiness init` | Create config and local runtime paths. Supports `--yes`, `--checks=<ids>`, and `--no-baseline`. |
-| `sentiness doctor` | Load configured checks, run each check's `detect()`, validate any required tool config files, and report install or `init-config` suggestions. |
+| `sentiness init` | Detect the stack, recommend checks, write `sentiness.config.json` (+ optional zones), warm the cache. Supports `--yes`, `--checks=<ids>`, `--install`/`--no-install`, `--skill=<agents>`, `--hooks`/`--no-hooks`, `--no-baseline`. |
+| `sentiness install` | Resolve the catalog's version ranges to exact versions, write `sentiness.lock`, and materialize the cache. `--frozen` installs exactly the lock (CI). |
+| `sentiness doctor` | Load configured checks per zone, run each check's `detect()`, validate required tool config, and report install or `init-config` suggestions. Read-only. |
 | `sentiness init-config` | Create default tool config files for enabled checks that ship a template (e.g. `stryker.conf.json`). Idempotent unless `--force`. |
 | `sentiness check` | Run checks for a tier or trigger and print the normalized report JSON. |
 | `sentiness check --background` | Spawn a background job, then inspect it with `status` and `pending`. |
@@ -73,39 +106,49 @@ not block on pre-existing debt.
 
 ## Configuration
 
-Sentiness loads `sentiness.config.js` first, then `sentiness.config.json`.
+Sentiness loads `sentiness.config.js` first, then `sentiness.config.json`. A config pins the engine,
+lists checks as a catalog (each entry declares exactly one of `version` or `path`), and optionally
+places them in zones.
 
 ```json
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "2.0",
+  "engine": "0.1.4",
   "checks": {
-    "biome": { "enabled": true, "tier": "fast" },
-    "knip": { "enabled": true, "tier": "standard" },
-    "deps-diff": { "enabled": true, "tier": "fast" },
-    "dependency-cruiser": { "enabled": true, "tier": "standard" },
-    "lockfile-lint": { "enabled": true, "tier": "standard" },
-    "jscpd": { "enabled": true, "tier": "standard" },
+    "biome": { "version": "*", "tier": "fast" },
+    "knip": { "version": "*", "tier": "standard" },
+    "deps-diff": { "version": "*", "tier": "fast" },
     "coverage": {
-      "enabled": true,
+      "version": "*",
       "tier": "slow",
       "thresholds": { "lineCoverage": 85 }
-    },
-    "stryker": { "enabled": true, "tier": "slow" },
-    "osv-scanner": { "enabled": true, "tier": "slow" },
-    "semgrep": { "enabled": true, "tier": "slow" }
+    }
   },
-  "baseline": { "path": ".sentiness/baseline.json" },
-  "pending": { "path": ".sentiness/pending-feedback.json" },
-  "reporting": {
-    "compact": false,
-    "omitOk": true,
-    "warningsAreErrors": false
-  },
-  "agents": ["codex"]
+  "reporting": { "compact": false, "omitOk": true, "warningsAreErrors": false },
+  "agents": ["claude-code-skill"]
 }
 ```
 
-Configured check IDs resolve to packages named `@sentiness/check-<id>`.
+A `version` range (e.g. `*`, `^1.2.0`) is resolved to an exact version and pinned in
+`sentiness.lock`; a `path` links a check directly from the repo (used to dogfood Sentiness on its own
+checks). Configured check IDs resolve to packages named `@sentiness/check-<id>`.
+
+A polyglot monorepo adds a `zones[]` block so each subdirectory runs only its own checks:
+
+```json
+{
+  "schemaVersion": "2.0",
+  "engine": "0.1.4",
+  "checks": {
+    "biome": { "version": "*" },
+    "clippy": { "version": "*" }
+  },
+  "zones": [
+    { "path": ".", "checks": ["biome"] },
+    { "path": "crates/app", "checks": ["clippy"] }
+  ]
+}
+```
 
 ## Report Contract
 

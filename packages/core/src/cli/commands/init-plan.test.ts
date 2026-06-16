@@ -2,8 +2,8 @@ import { InMemoryFileSystem } from '@sentiness/_test-utils';
 import { describe, expect, it } from 'vitest';
 import {
   buildOnboardingPlan,
+  buildOnboardingPlanV2,
   type CheckRecommendation,
-  missingPackagesFor,
   type TestRunner,
 } from './init-plan.js';
 
@@ -155,31 +155,65 @@ describe('buildOnboardingPlan', () => {
   });
 });
 
-describe('missingPackagesFor', () => {
-  it('lists the check package and its npm tool when both are absent', () => {
-    const missing = missingPackagesFor(['biome', 'coverage'], new Set());
-    expect(missing).toEqual([
-      '@sentiness/check-biome',
-      '@biomejs/biome',
-      '@sentiness/check-coverage',
-    ]);
+describe('buildOnboardingPlanV2', () => {
+  it('returns a single root node zone (no extra zones) for a plain node project', async () => {
+    const plan = await buildOnboardingPlanV2('/project', fsWith({ '/project/package.json': '{}' }));
+    expect(plan.zones).toHaveLength(1);
+    expect(plan.zones[0]).toMatchObject({ path: '.', ecosystem: 'node' });
+    expect(plan.catalog.map((c) => c.id)).toContain('biome');
+    expect(plan.engineVersion.length).toBeGreaterThan(0);
   });
 
-  it('skips packages that are already installed', () => {
-    const missing = missingPackagesFor(
-      ['biome'],
-      new Set(['@sentiness/check-biome', '@biomejs/biome']),
+  it('folds nested node packages into the single root node zone', async () => {
+    const plan = await buildOnboardingPlanV2(
+      '/project',
+      fsWith({
+        '/project/package.json': '{}',
+        '/project/packages/a/package.json': '{}',
+        '/project/packages/b/package.json': '{}',
+      }),
     );
-    expect(missing).toEqual([]);
+    expect(plan.zones).toHaveLength(1);
+    expect(plan.zones[0]?.path).toBe('.');
   });
 
-  it('does not list npm packages for non-npm tools', () => {
-    const missing = missingPackagesFor(['osv-scanner', 'semgrep'], new Set());
-    expect(missing).toEqual(['@sentiness/check-osv-scanner', '@sentiness/check-semgrep']);
+  it('records a rust zone alongside the node root for a node+rust monorepo', async () => {
+    const plan = await buildOnboardingPlanV2(
+      '/project',
+      fsWith({
+        '/project/package.json': '{}',
+        '/project/crates/app/Cargo.toml': '[package]\nname = "app"\n',
+      }),
+    );
+    const byPath = new Map(plan.zones.map((z) => [z.path, z]));
+    expect(byPath.get('.')?.ecosystem).toBe('node');
+    expect(byPath.get('crates/app')?.ecosystem).toBe('rust');
+    expect(byPath.get('crates/app')?.recommendedCheckIds).toEqual(['clippy']);
+    expect(plan.catalog.map((c) => c.id)).toContain('clippy');
   });
 
-  it('lists eslint as the npm tool for the eslint check', () => {
-    const missing = missingPackagesFor(['eslint'], new Set());
-    expect(missing).toEqual(['@sentiness/check-eslint', 'eslint']);
+  it('records a go zone with no checks for a node+go monorepo', async () => {
+    const plan = await buildOnboardingPlanV2(
+      '/project',
+      fsWith({
+        '/project/package.json': '{}',
+        '/project/services/api/go.mod': 'module api\n',
+      }),
+    );
+    const byPath = new Map(plan.zones.map((z) => [z.path, z]));
+    expect(byPath.get('services/api')?.ecosystem).toBe('go');
+    expect(byPath.get('services/api')?.recommendedCheckIds).toEqual([]);
+  });
+
+  it('ignores markers under vendored directories like node_modules', async () => {
+    const plan = await buildOnboardingPlanV2(
+      '/project',
+      fsWith({
+        '/project/package.json': '{}',
+        '/project/node_modules/dep/Cargo.toml': '[package]\n',
+      }),
+    );
+    expect(plan.zones).toHaveLength(1);
+    expect(plan.zones[0]?.ecosystem).toBe('node');
   });
 });
