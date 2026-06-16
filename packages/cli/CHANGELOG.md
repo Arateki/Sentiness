@@ -1,8 +1,8 @@
-# @sentiness/check-eslint
+# @sentiness/cli
 
-## 0.1.2
+## 0.2.0
 
-### Patch Changes
+### Minor Changes
 
 - af725c0: Sentiness v2 global spine (Phase V1). The engine now runs against a project with
   no `node_modules`: config moves to schema v2 (catalog + zones + engine pin),
@@ -13,12 +13,8 @@
   the new thin `@sentiness/cli` launcher owns the global `sentiness` bin (removed
   from `@sentiness/core`), fetching the pinned engine into the cache and spawning it
   with `--cache-root`. `CheckContext`/`ExecFileOptions` gain an optional `binPaths`.
-- Updated dependencies [af725c0]
-  - @sentiness/check-sdk@0.3.0
-
-## 0.1.1
 
 ### Patch Changes
 
-- Updated dependencies [8ff61b1]
-  - @sentiness/check-sdk@0.2.0
+- Updated dependencies [af725c0]
+  - @sentiness/check-sdk@0.3.0
