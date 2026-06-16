@@ -1,4 +1,5 @@
 import { isAbsolute, join } from 'node:path';
+import { SENTINESS_VERSION } from '../../version.js';
 import { Prompter } from '../wizard/prompts.js';
 import { baselineInitCommand } from './baseline.js';
 import { buildOnboardingPlan } from './init-plan.js';
@@ -6,8 +7,8 @@ import {
   formatGeneratedConfig,
   installAgentSkills,
   installGitHooks,
-  installMissingPackages,
   parseAgentSelection,
+  runCheckInstall,
 } from './init-steps.js';
 import type { CommandDeps, ParsedArgs } from './types.js';
 
@@ -138,7 +139,9 @@ export async function initCommand(args: ParsedArgs, deps: CommandDeps): Promise<
       if (!enabled) {
         continue;
       }
-      const checkConfig: Record<string, unknown> = { enabled: true, tier: check.tier };
+      // v2 catalog entry: a version range (resolved to an exact version + locked
+      // by `sentiness install`); '*' means "latest", which the lock pins.
+      const checkConfig: Record<string, unknown> = { version: '*', tier: check.tier };
       if (check.id === 'stryker' && prompter) {
         if (await shouldPromptForStrykerReportPath(deps.cwd, deps.fs)) {
           const reportPath = await prompter.ask(
@@ -167,12 +170,8 @@ export async function initCommand(args: ParsedArgs, deps: CommandDeps): Promise<
     }
 
     const config = {
-      schemaVersion: '1.0',
-      tiers: {
-        fast: { triggers: ['post-edit', 'pre-commit'], timeoutMs: 30000 },
-        standard: { triggers: ['pre-done'], timeoutMs: 120000 },
-        slow: { triggers: ['pre-push', 'pre-pr', 'manual'], timeoutMs: 600000 },
-      },
+      schemaVersion: '2.0',
+      engine: SENTINESS_VERSION,
       checks,
       baseline: { path: '.sentiness/baseline.json' },
       pending: { path: '.sentiness/pending-feedback.json' },
@@ -201,15 +200,16 @@ export async function initCommand(args: ParsedArgs, deps: CommandDeps): Promise<
       deps.logger.info('Created .gitignore with .sentiness/ ignores');
     }
 
-    await installMissingPackages(
-      plan,
-      Object.keys(checks),
-      async (command) =>
-        confirm(`Install missing packages? (${command})`, true, args.install === true),
-      deps,
-    );
-
     await formatGeneratedConfig(configPath, deps);
+
+    const wantInstall = await confirm(
+      'Resolve and cache the selected checks now? (sentiness install)',
+      true,
+      args.install === true,
+    );
+    if (wantInstall) {
+      await runCheckInstall(deps);
+    }
 
     await installAgentSkills(agents, deps);
 

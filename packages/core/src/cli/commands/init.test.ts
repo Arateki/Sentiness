@@ -27,6 +27,7 @@ type TestDeps = CommandDeps & { readonly processRunner: FakeProcessRunner };
 function makeDeps(fs: InMemoryFileSystem): TestDeps {
   return {
     cwd: '/project',
+    cacheRoot: '/home/u/.sentiness',
     fs,
     logger: new SilentLogger(),
     clock: new FixedClock(0),
@@ -34,6 +35,18 @@ function makeDeps(fs: InMemoryFileSystem): TestDeps {
     processRunner: new FakeProcessRunner(),
     stdout: { write: vi.fn() },
   };
+}
+
+// `init` resolves checks by running `sentiness install`, which begins by asking
+// the registry for the engine version. Detect that call to assert install ran.
+function ranInstall(deps: TestDeps): boolean {
+  return deps.processRunner.calls.some(
+    (call) =>
+      call.command === 'npm' &&
+      call.args[0] === 'view' &&
+      typeof call.args[1] === 'string' &&
+      call.args[1].startsWith('@sentiness/core'),
+  );
 }
 
 function pnpmProject(extraFiles: Record<string, string> = {}): InMemoryFileSystem {
@@ -61,6 +74,9 @@ describe('initCommand', () => {
     expect(exitCode).toBe(0);
 
     const config = JSON.parse(await fs.readFile('/project/sentiness.config.json'));
+    expect(config.schemaVersion).toBe('2.0');
+    expect(typeof config.engine).toBe('string');
+    expect(config.engine.length).toBeGreaterThan(0);
     expect(Object.keys(config.checks)).toEqual([
       'biome',
       'eslint',
@@ -75,36 +91,32 @@ describe('initCommand', () => {
       'semgrep',
       'playwright',
     ]);
+    // Each catalog entry declares exactly one of version/path (v2 contract).
+    expect(config.checks.biome.version).toBe('*');
+    expect(config.checks.biome.path).toBeUndefined();
 
     const gitignore = await fs.readFile('/project/.gitignore');
     expect(gitignore).toContain('.sentiness/jobs/');
   });
 
-  it('installs missing packages through the detected package manager on consent', async () => {
+  it('runs `sentiness install` to resolve checks on consent, never `<pm> add -D`', async () => {
     const fs = pnpmProject();
     const deps = makeDeps(fs);
     mockConfirm.mockImplementation(async (question: string) => {
       if (question.startsWith('Enable')) {
         return question.startsWith('Enable Biome check');
       }
-      if (question.startsWith('Install') || question.startsWith('Create')) {
-        return question.startsWith('Install missing packages');
-      }
-      return true;
+      return question.startsWith('Resolve');
     });
 
     const exitCode = await initCommand({}, deps);
 
     expect(exitCode).toBe(0);
-    const installCall = deps.processRunner.calls.find((call) => call.args[0] === 'add');
-    expect(installCall).toEqual({
-      command: 'pnpm',
-      args: ['add', '-D', '@sentiness/check-biome', '@biomejs/biome'],
-      options: { cwd: '/project' },
-    });
+    expect(ranInstall(deps)).toBe(true);
+    expect(deps.processRunner.calls.filter((call) => call.args[0] === 'add')).toHaveLength(0);
   });
 
-  it('skips installation when the user refuses', async () => {
+  it('skips check resolution when the user refuses', async () => {
     const fs = pnpmProject();
     const deps = makeDeps(fs);
     mockConfirm.mockImplementation(async (question: string) => {
@@ -117,18 +129,19 @@ describe('initCommand', () => {
     const exitCode = await initCommand({}, deps);
 
     expect(exitCode).toBe(0);
-    expect(deps.processRunner.calls.filter((call) => call.args[0] === 'add')).toHaveLength(0);
+    expect(ranInstall(deps)).toBe(false);
   });
 
-  it('warns and continues when the package install fails', async () => {
+  it('warns and continues when check resolution fails', async () => {
     const fs = pnpmProject();
     const deps = makeDeps(fs);
-    deps.processRunner.enqueue({ stdout: '', stderr: 'registry down', exitCode: 1 });
+    // With no scripted npm output, `npm view` yields empty stdout, so install
+    // throws while parsing it; init must warn and still leave a config behind.
     mockConfirm.mockImplementation(async (question: string) => {
       if (question.startsWith('Enable')) {
         return question.startsWith('Enable Biome check');
       }
-      return question.startsWith('Install missing packages');
+      return question.startsWith('Resolve');
     });
 
     const exitCode = await initCommand({}, deps);
@@ -137,19 +150,19 @@ describe('initCommand', () => {
     expect(await fs.exists('/project/sentiness.config.json')).toBe(true);
   });
 
-  it('does not install anything in --yes mode without --install', async () => {
+  it('does not resolve checks in --yes mode without --install', async () => {
     const fs = pnpmProject();
     const deps = makeDeps(fs);
 
     const exitCode = await initCommand({ yes: true, checks: 'biome', baseline: false }, deps);
 
     expect(exitCode).toBe(0);
-    expect(deps.processRunner.calls.filter((call) => call.args[0] === 'add')).toHaveLength(0);
+    expect(ranInstall(deps)).toBe(false);
     expect(await fs.exists('/project/.claude/skills/sentiness/SKILL.md')).toBe(false);
     expect(await fs.exists('/project/.git/hooks/pre-commit')).toBe(false);
   });
 
-  it('installs packages in --yes mode with --install', async () => {
+  it('resolves checks in --yes mode with --install', async () => {
     const fs = pnpmProject();
     const deps = makeDeps(fs);
 
@@ -159,11 +172,8 @@ describe('initCommand', () => {
     );
 
     expect(exitCode).toBe(0);
-    expect(deps.processRunner.calls[0]).toEqual({
-      command: 'pnpm',
-      args: ['add', '-D', '@sentiness/check-biome', '@biomejs/biome'],
-      options: { cwd: '/project' },
-    });
+    expect(ranInstall(deps)).toBe(true);
+    expect(deps.processRunner.calls.filter((call) => call.args[0] === 'add')).toHaveLength(0);
   });
 
   it('formats the generated config with the project formatter (biome)', async () => {
@@ -178,20 +188,6 @@ describe('initCommand', () => {
       args: ['format', '--write', '/project/sentiness.config.json'],
       options: { cwd: '/project' },
     });
-  });
-
-  it('formats the config after installing packages so a freshly installed biome is used', async () => {
-    const fs = pnpmProject();
-    const deps = makeDeps(fs);
-
-    const exitCode = await initCommand(
-      { yes: true, checks: 'biome', baseline: false, install: true },
-      deps,
-    );
-
-    expect(exitCode).toBe(0);
-    const commands = deps.processRunner.calls.map((call) => call.command);
-    expect(commands.indexOf('biome')).toBeGreaterThan(commands.indexOf('pnpm'));
   });
 
   it('continues when biome is unavailable to format the generated config', async () => {

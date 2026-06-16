@@ -21,12 +21,12 @@ export type OnboardingPlan = {
   readonly testRunner: TestRunner;
   readonly checks: readonly CheckRecommendation[];
   readonly detectedAgents: readonly string[];
-  readonly installedDependencies: ReadonlySet<string>;
 };
 
 // npm-installable external tool per check; checks absent here either need no
 // tool (coverage, deps-diff) or are not installable from npm (osv-scanner,
-// semgrep — doctor prints their install hints).
+// semgrep — doctor prints their install hints). Consumed by `sentiness install`
+// to pin each check's tool alongside the check package.
 export const EXTERNAL_TOOL_PACKAGES: Readonly<Record<string, string>> = {
   biome: '@biomejs/biome',
   eslint: 'eslint',
@@ -187,24 +187,5 @@ export async function buildOnboardingPlan(cwd: string, fs: FileSystem): Promise<
     testRunner,
     checks,
     detectedAgents,
-    installedDependencies: installed,
   };
-}
-
-export function missingPackagesFor(
-  enabledCheckIds: readonly string[],
-  installed: ReadonlySet<string>,
-): readonly string[] {
-  const missing: string[] = [];
-  for (const id of enabledCheckIds) {
-    const checkPackage = `@sentiness/check-${id}`;
-    if (!installed.has(checkPackage)) {
-      missing.push(checkPackage);
-    }
-    const tool = EXTERNAL_TOOL_PACKAGES[id];
-    if (tool && !installed.has(tool)) {
-      missing.push(tool);
-    }
-  }
-  return missing;
 }
