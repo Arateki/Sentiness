@@ -1,6 +1,6 @@
 {
   "name": "@sentiness/check-coverage",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Sentiness check that enforces coverage thresholds from Istanbul coverage-final.json reports.",
   "license": "MIT",
   "engines": {

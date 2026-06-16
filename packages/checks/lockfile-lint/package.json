@@ -1,6 +1,6 @@
 {
   "name": "@sentiness/check-lockfile-lint",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Sentiness check that validates npm/Yarn lockfile security policies via lockfile-lint.",
   "license": "MIT",
   "engines": {

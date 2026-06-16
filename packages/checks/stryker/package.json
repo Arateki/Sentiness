@@ -1,6 +1,6 @@
 {
   "name": "@sentiness/check-stryker",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Sentiness check that reports surviving mutants and mutation score from StrykerJS.",
   "license": "MIT",
   "engines": {
