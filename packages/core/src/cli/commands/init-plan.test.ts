@@ -1,6 +1,11 @@
 import { InMemoryFileSystem } from '@sentiness/_test-utils';
 import { describe, expect, it } from 'vitest';
-import { buildOnboardingPlan, type CheckRecommendation, type TestRunner } from './init-plan.js';
+import {
+  buildOnboardingPlan,
+  buildOnboardingPlanV2,
+  type CheckRecommendation,
+  type TestRunner,
+} from './init-plan.js';
 
 function fsWith(files: Record<string, string>): InMemoryFileSystem {
   return new InMemoryFileSystem(files);
@@ -147,5 +152,68 @@ describe('buildOnboardingPlan', () => {
       }),
     );
     expect(plan.detectedAgents).toEqual(['codex-skill']);
+  });
+});
+
+describe('buildOnboardingPlanV2', () => {
+  it('returns a single root node zone (no extra zones) for a plain node project', async () => {
+    const plan = await buildOnboardingPlanV2('/project', fsWith({ '/project/package.json': '{}' }));
+    expect(plan.zones).toHaveLength(1);
+    expect(plan.zones[0]).toMatchObject({ path: '.', ecosystem: 'node' });
+    expect(plan.catalog.map((c) => c.id)).toContain('biome');
+    expect(plan.engineVersion.length).toBeGreaterThan(0);
+  });
+
+  it('folds nested node packages into the single root node zone', async () => {
+    const plan = await buildOnboardingPlanV2(
+      '/project',
+      fsWith({
+        '/project/package.json': '{}',
+        '/project/packages/a/package.json': '{}',
+        '/project/packages/b/package.json': '{}',
+      }),
+    );
+    expect(plan.zones).toHaveLength(1);
+    expect(plan.zones[0]?.path).toBe('.');
+  });
+
+  it('records a rust zone alongside the node root for a node+rust monorepo', async () => {
+    const plan = await buildOnboardingPlanV2(
+      '/project',
+      fsWith({
+        '/project/package.json': '{}',
+        '/project/crates/app/Cargo.toml': '[package]\nname = "app"\n',
+      }),
+    );
+    const byPath = new Map(plan.zones.map((z) => [z.path, z]));
+    expect(byPath.get('.')?.ecosystem).toBe('node');
+    expect(byPath.get('crates/app')?.ecosystem).toBe('rust');
+    expect(byPath.get('crates/app')?.recommendedCheckIds).toEqual(['clippy']);
+    expect(plan.catalog.map((c) => c.id)).toContain('clippy');
+  });
+
+  it('records a go zone with no checks for a node+go monorepo', async () => {
+    const plan = await buildOnboardingPlanV2(
+      '/project',
+      fsWith({
+        '/project/package.json': '{}',
+        '/project/services/api/go.mod': 'module api\n',
+      }),
+    );
+    const byPath = new Map(plan.zones.map((z) => [z.path, z]));
+    expect(byPath.get('services/api')?.ecosystem).toBe('go');
+    expect(byPath.get('services/api')?.recommendedCheckIds).toEqual([]);
+  });
+
+  it('ignores markers under vendored directories like node_modules', async () => {
+    const plan = await buildOnboardingPlanV2(
+      '/project',
+      fsWith({
+        '/project/package.json': '{}',
+        '/project/node_modules/dep/Cargo.toml': '[package]\n',
+      }),
+    );
+    expect(plan.zones).toHaveLength(1);
+    expect(plan.zones[0]?.ecosystem).toBe('node');
   });
 });

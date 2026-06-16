@@ -1,12 +1,15 @@
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import type { FileSystem } from '@sentiness/check-sdk';
 import {
   detectPackageMetadata,
   type PackageManager,
   type PackageMetadata,
 } from '../../package-metadata/package-metadata.js';
+import { SENTINESS_VERSION } from '../../version.js';
 
 export type TestRunner = 'vitest' | 'jest' | 'none';
+
+export type Ecosystem = 'node' | 'rust' | 'go' | 'unknown';
 
 export type CheckRecommendation = {
   readonly id: string;
@@ -187,5 +190,157 @@ export async function buildOnboardingPlan(cwd: string, fs: FileSystem): Promise<
     testRunner,
     checks,
     detectedAgents,
+  };
+}
+
+export type DetectedZone = {
+  readonly path: string; // project-relative, '.' for the root zone
+  readonly ecosystem: Ecosystem;
+  readonly recommendedCheckIds: readonly string[];
+};
+
+export type OnboardingPlanV2 = {
+  readonly engineVersion: string; // the CLI's own version, pinned into config
+  readonly zones: readonly DetectedZone[]; // [{ path: '.', … }] for single-project
+  readonly catalog: readonly CheckRecommendation[]; // union of all zones' checks, deduped
+  readonly detectedAgents: readonly string[];
+};
+
+// The only non-JS check in v2. Rust zones recommend it; it resolves on the host
+// PATH (detect-only) once the package ships.
+const RUST_CLIPPY_RECOMMENDATION: CheckRecommendation = {
+  id: 'clippy',
+  label: 'Clippy check (Rust lints)',
+  tier: 'standard',
+  recommended: true,
+};
+
+// Directories that never hold a project we want to zone; skipped while walking.
+const IGNORED_WALK_DIRS: ReadonlySet<string> = new Set([
+  'node_modules',
+  'target',
+  'dist',
+  'build',
+  'out',
+  'coverage',
+  'vendor',
+  '.git',
+  '.sentiness',
+  '.next',
+  '.turbo',
+]);
+
+const MAX_ZONE_WALK_DEPTH = 4;
+
+async function ecosystemAt(dir: string, fs: FileSystem): Promise<Ecosystem> {
+  // Rust/Go markers win over package.json: a polyglot subdir is labelled by its
+  // own toolchain, not by an incidental package.json (e.g. for JS test fixtures).
+  if (await fs.exists(join(dir, 'Cargo.toml'))) {
+    return 'rust';
+  }
+  if (await fs.exists(join(dir, 'go.mod'))) {
+    return 'go';
+  }
+  if (await fs.exists(join(dir, 'package.json'))) {
+    return 'node';
+  }
+  return 'unknown';
+}
+
+type EcosystemDir = { readonly dir: string; readonly ecosystem: Ecosystem };
+
+// Walk the repo for ecosystem markers. The root is always a candidate zone and
+// is always descended into so sibling crates/modules are found. A marked subdir
+// becomes its own zone and is not descended into (its subtree belongs to it).
+// Nested node packages are folded into the root node zone — JS tooling runs from
+// the repo root across the whole tree — so a plain node monorepo stays single-zone.
+async function detectEcosystemDirs(cwd: string, fs: FileSystem): Promise<readonly EcosystemDir[]> {
+  const found: EcosystemDir[] = [];
+  let hasRootNodeZone = false;
+
+  const visit = async (dir: string, depth: number, isRoot: boolean): Promise<void> => {
+    const ecosystem = await ecosystemAt(dir, fs);
+    if (!isRoot && ecosystem !== 'unknown') {
+      if (!(ecosystem === 'node' && hasRootNodeZone)) {
+        found.push({ dir, ecosystem });
+      }
+      return; // do not descend into a marked subdir
+    }
+    if (isRoot && ecosystem !== 'unknown') {
+      found.push({ dir, ecosystem });
+      hasRootNodeZone = ecosystem === 'node';
+    }
+    if (depth >= MAX_ZONE_WALK_DEPTH) {
+      return;
+    }
+    let entries: readonly string[];
+    try {
+      entries = await fs.readDir(dir);
+    } catch {
+      return;
+    }
+    for (const name of entries) {
+      if (name.startsWith('.') || IGNORED_WALK_DIRS.has(name)) {
+        continue;
+      }
+      const child = join(dir, name);
+      const stat = await fs.stat(child).catch(() => undefined);
+      if (stat?.isDirectory) {
+        await visit(child, depth + 1, false);
+      }
+    }
+  };
+
+  await visit(cwd, 0, true);
+  return found;
+}
+
+function zonePath(cwd: string, dir: string): string {
+  const rel = relative(cwd, dir);
+  return rel === '' ? '.' : rel.split('\\').join('/');
+}
+
+async function recommendationsForZone(
+  ecosystem: Ecosystem,
+  dir: string,
+  fs: FileSystem,
+): Promise<readonly CheckRecommendation[]> {
+  if (ecosystem === 'node') {
+    return (await buildOnboardingPlan(dir, fs)).checks;
+  }
+  if (ecosystem === 'rust') {
+    return [RUST_CLIPPY_RECOMMENDATION];
+  }
+  return []; // go (and unknown): no checks yet, but the zone is still recorded
+}
+
+export async function buildOnboardingPlanV2(
+  cwd: string,
+  fs: FileSystem,
+): Promise<OnboardingPlanV2> {
+  const ecosystemDirs = await detectEcosystemDirs(cwd, fs);
+  const zones: DetectedZone[] = [];
+  const catalog = new Map<string, CheckRecommendation>();
+
+  for (const { dir, ecosystem } of ecosystemDirs) {
+    const recommendations = await recommendationsForZone(ecosystem, dir, fs);
+    for (const recommendation of recommendations) {
+      if (!catalog.has(recommendation.id)) {
+        catalog.set(recommendation.id, recommendation);
+      }
+    }
+    zones.push({
+      path: zonePath(cwd, dir),
+      ecosystem,
+      recommendedCheckIds: recommendations.filter((r) => r.recommended).map((r) => r.id),
+    });
+  }
+
+  const rootPlan = await buildOnboardingPlan(cwd, fs);
+  return {
+    engineVersion: SENTINESS_VERSION,
+    zones,
+    catalog: [...catalog.values()],
+    detectedAgents: rootPlan.detectedAgents,
   };
 }
