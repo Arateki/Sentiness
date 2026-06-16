@@ -1,9 +1,7 @@
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "2.0",
+  "engine": "0.1.4",
   "checks": {
-    "biome": {
-      "enabled": true,
-      "tier": "fast"
-    }
+    "biome": { "path": "../../packages/checks/biome", "tier": "fast" }
   }
 }

@@ -72,13 +72,24 @@ root zone). Per-zone `checks` are the enabled catalog ids the zone owns (`clippy
 (the only non-JS check in v2); go zones are recorded with no checks yet. The
 generated polyglot config validates against the v2 schema (asserted in tests).
 
-### Still deferred: `pnpm test:e2e` (out of this scope, spec task TV4.3)
+### E2E migrated to v2 (TV4.3) — done (2026-06-16)
 
-`pnpm test:e2e` (`packages/core/test/e2e/full-flow.test.ts`) runs the built CLI
-against `examples/demo-project`, whose `sentiness.config.json` is still v1 and
-whose checks resolve from `node_modules`. Migrating the demo config + the harness
-to the v2 cache/`install` model is a larger rewrite that belongs to the V4 E2E
-plan; left as-is here to keep this change focused on `init`.
+`pnpm test:e2e` (`packages/core/test/e2e/full-flow.test.ts`) and
+`examples/demo-project` were migrated to the v2 model. The demo config is now
+`schemaVersion: '2.0'` with a **path-linked** biome check; the harness writes v2
+configs (`buildV2Config`) that path-link each check to its built package under
+`packages/checks/*` via a project-relative path, instead of symlinking into
+`node_modules/@sentiness`. This needs **no cache, no `sentiness install`, and no
+project node_modules**: the engine resolves path-linked checks directly from the
+repo, and each check's external tool (e.g. biome) still resolves from the
+inherited PATH (`cliEnv` prepends the repo `node_modules/.bin`). The non-
+interactive `init` E2E assertion was updated to the v2 output
+(`{ biome: { version: '*', tier: 'fast' } }`).
+
+This unblocked `main` CI, which regressed to red after v2 landed because the v1
+demo config was rejected by the v2 loader. All 14 E2E cases pass, alongside 209
+unit tests, typecheck, lint, `check:release-packages` (15 packages), and the
+dogfood `check --tier=fast`.
 
 ## Implementation approach
 
