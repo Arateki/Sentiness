@@ -24,11 +24,16 @@ function writeMockCheck(
     dynamicDefaultPath?: string;
   },
 ): void {
-  const packageDir = join(cwd, 'node_modules', '@sentiness', `check-${id}`);
+  const packageDir = join(cwd, 'checks', id);
   mkdirSync(packageDir, { recursive: true });
   writeFileSync(
     join(packageDir, 'package.json'),
-    JSON.stringify({ name: `@sentiness/check-${id}`, type: 'module', exports: './index.js' }),
+    JSON.stringify({
+      name: `@sentiness/check-${id}`,
+      type: 'module',
+      main: './index.js',
+      exports: './index.js',
+    }),
   );
   const fragments: string[] = [
     `id: "${id}"`,
@@ -71,6 +76,7 @@ describe('initConfigCommand', () => {
   function deps(stdout = vi.fn()): CommandDeps {
     return {
       cwd,
+      cacheRoot: join(cwd, '.sentiness-home'),
       fs: createNodeFileSystem(),
       processRunner: new FakeProcessRunner(),
       logger: new SilentLogger(),
@@ -89,8 +95,9 @@ describe('initConfigCommand', () => {
     writeFileSync(
       join(cwd, 'sentiness.config.json'),
       JSON.stringify({
-        schemaVersion: '1.0',
-        checks: { demo: { enabled: true, tier: 'fast' } },
+        schemaVersion: '2.0',
+        engine: '2.0.0',
+        checks: { demo: { path: 'checks/demo' } },
       }),
     );
     const stdout = vi.fn();
@@ -113,8 +120,9 @@ describe('initConfigCommand', () => {
     writeFileSync(
       join(cwd, 'sentiness.config.json'),
       JSON.stringify({
-        schemaVersion: '1.0',
-        checks: { demo: { enabled: true, tier: 'fast' } },
+        schemaVersion: '2.0',
+        engine: '2.0.0',
+        checks: { demo: { path: 'checks/demo' } },
       }),
     );
     const stdout = vi.fn();
@@ -137,8 +145,9 @@ describe('initConfigCommand', () => {
     writeFileSync(
       join(cwd, 'sentiness.config.json'),
       JSON.stringify({
-        schemaVersion: '1.0',
-        checks: { demo: { enabled: true, tier: 'fast' } },
+        schemaVersion: '2.0',
+        engine: '2.0.0',
+        checks: { demo: { path: 'checks/demo' } },
       }),
     );
 
@@ -153,8 +162,9 @@ describe('initConfigCommand', () => {
     writeFileSync(
       join(cwd, 'sentiness.config.json'),
       JSON.stringify({
-        schemaVersion: '1.0',
-        checks: { demo: { enabled: true, tier: 'fast' } },
+        schemaVersion: '2.0',
+        engine: '2.0.0',
+        checks: { demo: { path: 'checks/demo' } },
       }),
     );
     const stdout = vi.fn();
@@ -176,10 +186,11 @@ describe('initConfigCommand', () => {
     writeFileSync(
       join(cwd, 'sentiness.config.json'),
       JSON.stringify({
-        schemaVersion: '1.0',
+        schemaVersion: '2.0',
+        engine: '2.0.0',
         checks: {
-          alpha: { enabled: true, tier: 'fast' },
-          beta: { enabled: true, tier: 'fast' },
+          alpha: { path: 'checks/alpha' },
+          beta: { path: 'checks/beta' },
         },
       }),
     );
@@ -191,7 +202,10 @@ describe('initConfigCommand', () => {
   });
 
   it('returns 1 when --check targets an id that is not enabled', async () => {
-    writeFileSync(join(cwd, 'sentiness.config.json'), JSON.stringify({ schemaVersion: '1.0' }));
+    writeFileSync(
+      join(cwd, 'sentiness.config.json'),
+      JSON.stringify({ schemaVersion: '2.0', engine: '2.0.0', checks: {} }),
+    );
 
     const exit = await initConfigCommand({ check: 'unknown' }, deps());
 

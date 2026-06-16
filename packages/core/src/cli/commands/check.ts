@@ -6,9 +6,9 @@ import { applyBaselineToOutcome } from '../../baseline/diff-filter.js';
 import { loadConfig, type ResolvedConfig } from '../../config/config.js';
 import { JobSpawner } from '../../jobs/spawner.js';
 import { PendingQueue } from '../../pending/pending.js';
-import { CheckRegistry } from '../../registry/registry.js';
 import { buildReport, exitCodeFor } from '../../reporter/reporter.js';
 import { runChecks } from '../../runner/runner.js';
+import { buildRegistry } from './build-registry.js';
 import type { CommandDeps, ParsedArgs } from './types.js';
 
 function optionalString(value: unknown): string | undefined {
@@ -88,7 +88,7 @@ export async function checkCommand(args: ParsedArgs, deps: CommandDeps): Promise
     return 0;
   }
 
-  const registry = await CheckRegistry.fromConfig(config, deps.cwd);
+  const registry = await buildRegistry(config, deps);
   const baseRef = optionalString(args.base);
   const diffOnly = optionalBoolean(args.diff);
   const trend = optionalBoolean(args.trend);

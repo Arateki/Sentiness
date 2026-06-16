@@ -23,6 +23,7 @@ vi.mock('node:fs/promises', () => ({
 function makeDeps(fs: InMemoryFileSystem, stdout = vi.fn()): CommandDeps {
   return {
     cwd: '/project',
+    cacheRoot: '/home/u/.sentiness',
     fs,
     processRunner: new FakeProcessRunner(),
     logger: new SilentLogger(),

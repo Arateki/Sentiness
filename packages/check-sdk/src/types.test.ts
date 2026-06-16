@@ -8,6 +8,7 @@ import {
   type CheckId,
   compareSeverity,
   type DefaultConfigContext,
+  type ExecFileOptions,
   type Finding,
   type ProcessRunner,
   severityValue,
@@ -45,6 +46,11 @@ describe('SDK types', () => {
   it('types findings with fingerprints', () => {
     expectTypeOf<Finding>().toHaveProperty('fingerprint');
     expectTypeOf<Finding['fingerprint']>().toEqualTypeOf<string>();
+  });
+
+  it('threads slot bin paths through the context and exec options', () => {
+    expectTypeOf<CheckContext['binPaths']>().toEqualTypeOf<readonly string[] | undefined>();
+    expectTypeOf<ExecFileOptions['binPaths']>().toEqualTypeOf<readonly string[] | undefined>();
   });
 
   it('orders severities from most severe to least severe', () => {

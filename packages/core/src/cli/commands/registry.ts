@@ -9,6 +9,7 @@ import { checkCommand } from './check.js';
 import { doctorCommand } from './doctor.js';
 import { initCommand } from './init.js';
 import { initConfigCommand } from './init-config.js';
+import { installCommand } from './install.js';
 import { installHooksCommand } from './install-hooks.js';
 import { installSkillCommand } from './install-skill.js';
 import { pendingCommand } from './pending.js';
@@ -101,6 +102,16 @@ export function registerCommands(cli: CAC, deps: CommandDeps): void {
     .action(wrap(checkCommand, deps));
 
   cli.command('doctor', 'Diagnose configured checks').action(wrap(doctorCommand, deps));
+
+  cli
+    .command('install', 'Resolve pinned versions, write sentiness.lock, and warm the cache')
+    .option('--frozen', 'Require an existing lock that satisfies the config; do not re-resolve')
+    .action(
+      wrap(
+        (args, commandDeps) => installCommand({ frozen: args.frozen === true }, commandDeps),
+        deps,
+      ),
+    );
 
   cli
     .command('init-config', 'Create default tool config files for enabled checks that need them')

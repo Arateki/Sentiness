@@ -30,6 +30,7 @@
     "test": "vitest run --config ../../../vitest.config.base.ts src"
   },
   "dependencies": {
+    "@biomejs/biome": "2.4.13",
     "@sentiness/check-sdk": "workspace:*",
     "zod": "^4.3.6"
   },

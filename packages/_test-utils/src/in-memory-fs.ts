@@ -53,11 +53,29 @@ export class InMemoryFileSystem implements FileSystem {
   async rename(from: string, to: string): Promise<void> {
     const normalizedFrom = normalizePath(from);
     const file = this.files.get(normalizedFrom);
-    if (!file) {
-      throw new Error(`File not found: ${from}`);
+    if (file) {
+      this.files.delete(normalizedFrom);
+      this.writeSync(to, file.content);
+      return;
     }
-    this.files.delete(normalizedFrom);
-    this.writeSync(to, file.content);
+    if (this.directories.has(normalizedFrom)) {
+      const normalizedTo = normalizePath(to);
+      const prefix = `${normalizedFrom}/`;
+      for (const [path, value] of [...this.files.entries()]) {
+        if (path.startsWith(prefix)) {
+          this.files.delete(path);
+          this.writeSync(join(normalizedTo, path.slice(prefix.length)), value.content);
+        }
+      }
+      for (const dir of [...this.directories]) {
+        if (dir === normalizedFrom || dir.startsWith(prefix)) {
+          this.directories.delete(dir);
+        }
+      }
+      this.ensureDir(normalizedTo);
+      return;
+    }
+    throw new Error(`Path not found: ${from}`);
   }
 
   async exists(path: string): Promise<boolean> {

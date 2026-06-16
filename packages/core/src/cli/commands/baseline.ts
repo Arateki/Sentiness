@@ -6,8 +6,9 @@ import {
   collectMetricBaselines,
 } from '../../baseline/baseline.js';
 import { loadConfig, type ResolvedConfig } from '../../config/config.js';
-import { CheckRegistry } from '../../registry/registry.js';
+import type { CheckRegistry } from '../../registry/registry.js';
 import { type RunInput, type RunOutcome, runChecks } from '../../runner/runner.js';
+import { buildRegistry } from './build-registry.js';
 import type { CommandDeps, ParsedArgs } from './types.js';
 
 function resolvePath(cwd: string, path: string): string {
@@ -135,7 +136,7 @@ function tierRetrySuggestion(tier: Tier): string {
 
 export async function baselineInitCommand(_args: ParsedArgs, deps: CommandDeps): Promise<number> {
   const config = await loadConfig(deps.cwd, deps.fs);
-  const registry = await CheckRegistry.fromConfig(config, deps.cwd);
+  const registry = await buildRegistry(config, deps);
   const baselinePath = resolvePath(deps.cwd, config.baseline.path);
   const mergedOutcome = await runAllTiers(config, registry, deps);
 
@@ -157,7 +158,7 @@ export async function baselineUpdateCommand(args: ParsedArgs, deps: CommandDeps)
     return 1;
   }
 
-  const registry = await CheckRegistry.fromConfig(config, deps.cwd);
+  const registry = await buildRegistry(config, deps);
   const targetMetric = optionalString(args.metric);
   const forceUpdate = args.force === true;
 
@@ -245,7 +246,7 @@ export async function baselineAcceptCommand(args: ParsedArgs, deps: CommandDeps)
     return 1;
   }
 
-  const registry = await CheckRegistry.fromConfig(config, deps.cwd);
+  const registry = await buildRegistry(config, deps);
   const parsedTier = optionalString(args.tier);
   const acceptTier: Tier =
     parsedTier === 'fast' || parsedTier === 'standard' || parsedTier === 'slow'
@@ -287,7 +288,7 @@ export async function baselinePruneCommand(_args: ParsedArgs, deps: CommandDeps)
     return 1;
   }
 
-  const registry = await CheckRegistry.fromConfig(config, deps.cwd);
+  const registry = await buildRegistry(config, deps);
 
   const currentFingerprints = new Set(
     allFindings(await runAllTiers(config, registry, deps)).map((finding) => finding.fingerprint),

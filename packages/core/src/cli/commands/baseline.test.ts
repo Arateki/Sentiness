@@ -39,6 +39,7 @@ describe('baseline commands', () => {
     });
     return {
       cwd: '/project',
+      cacheRoot: '/home/u/.sentiness',
       fs,
       git: new InMemoryGitProvider(),
       clock: new FixedClock(0),
@@ -59,7 +60,7 @@ describe('baseline commands', () => {
       },
       loadFailures: () => [],
     } as unknown as CheckRegistry;
-    vi.spyOn(CheckRegistry, 'fromConfig').mockResolvedValue(registry);
+    vi.spyOn(CheckRegistry, 'fromResolved').mockResolvedValue(registry);
   }
 
   function metricCheck(value: number): Check {
@@ -227,8 +228,10 @@ describe('baseline commands', () => {
       await deps.fs.mkdir('/project/.sentiness', { recursive: true });
       await deps.fs.writeFile('/project/.sentiness/baseline.json', emptyBaseline);
 
-      // Inject the finding into the registry synthetic failures to ensure it appears in the outcome
-      const config = { ...DEFAULT_CONFIG, checks: { 'invalid@@': { enabled: true } } };
+      // Inject the finding into the registry synthetic failures to ensure it appears in the outcome.
+      // The check id 'invalid@@' fails the registry's pattern check and produces a synthetic finding
+      // with fingerprint '0'.repeat(64).
+      const config = { ...DEFAULT_CONFIG, checks: { 'invalid@@': { version: '1.0.0' } } };
       await deps.fs.writeFile('/project/sentiness.config.json', JSON.stringify(config));
 
       // The synthetic load failure will generate a finding with fingerprint '000...000'

@@ -1,4 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
   asCheckId,
@@ -7,11 +9,13 @@ import {
   type CheckId,
   type Tier,
 } from '@sentiness/check-sdk';
+import type { ArtifactStore } from '../cache/artifact-store.js';
 import type { ResolvedConfig } from '../config/config.js';
+import type { SentinessLock } from '../lock/schema.js';
 
 export type CheckLoadFailure = {
   readonly requestedId: CheckId;
-  readonly moduleName: string;
+  readonly source: string;
   readonly message: string;
 };
 
@@ -81,12 +85,56 @@ function validateConfigId(id: string): CheckId {
   return asCheckId(id);
 }
 
-async function importCheck(modulePath: string): Promise<Check> {
-  const moduleValue: unknown = await import(pathToFileURL(modulePath).href);
+async function importDefault(entryFile: string): Promise<Check> {
+  const moduleValue: unknown = await import(pathToFileURL(entryFile).href);
   if (!isRecord(moduleValue) || !('default' in moduleValue)) {
     throw new Error('module has no default export');
   }
   return validateCheck(moduleValue.default);
+}
+
+// Resolve the package main of an installed @sentiness/check-<id> living in a slot.
+function checkEntryFile(slotDir: string, id: string): string {
+  const requireFromSlot = createRequire(join(slotDir, 'package.json'));
+  return requireFromSlot.resolve(`@sentiness/check-${id}`);
+}
+
+// Resolve a package's entry file from its own package.json. Node's CommonJS
+// `require.resolve` does NOT honor the `exports` field when given an absolute
+// directory path (only `main`/`index.js`), and the check packages ship with
+// `exports` but no `main`, so we read the manifest and resolve the `.` entry
+// ourselves.
+function resolvePackageEntry(pkg: Record<string, unknown>): string {
+  const exportsField = pkg.exports;
+  if (typeof exportsField === 'string') {
+    return exportsField;
+  }
+  if (isRecord(exportsField)) {
+    const dot = exportsField['.'];
+    if (typeof dot === 'string') {
+      return dot;
+    }
+    if (isRecord(dot)) {
+      const condition = dot.default ?? dot.import ?? dot.node;
+      if (typeof condition === 'string') {
+        return condition;
+      }
+    }
+  }
+  if (typeof pkg.main === 'string') {
+    return pkg.main;
+  }
+  return 'index.js';
+}
+
+// Resolve the entry file of a path-linked local check.
+function linkedEntryFile(repoRoot: string, relPath: string): string {
+  const pkgDir = join(repoRoot, relPath);
+  const manifest: unknown = JSON.parse(readFileSync(join(pkgDir, 'package.json'), 'utf8'));
+  if (!isRecord(manifest)) {
+    throw new Error(`Invalid package.json at ${pkgDir}`);
+  }
+  return join(pkgDir, resolvePackageEntry(manifest));
 }
 
 export class CheckRegistry {
@@ -96,46 +144,56 @@ export class CheckRegistry {
     private readonly tierOverrides: ReadonlyMap<CheckId, Tier>,
   ) {}
 
-  static async fromConfig(config: ResolvedConfig, cwd: string): Promise<CheckRegistry> {
-    const requireFromCwd = createRequire(`${cwd}/package.json`);
+  static async fromResolved(
+    config: ResolvedConfig,
+    lock: SentinessLock,
+    store: ArtifactStore,
+    repoRoot: string,
+  ): Promise<CheckRegistry> {
     const checks: Check[] = [];
     const failures: CheckLoadFailure[] = [];
     const tierOverrides = new Map<CheckId, Tier>();
 
-    for (const [rawId, checkConfig] of Object.entries(config.checks)) {
-      let requestedId: CheckId;
+    for (const [rawId, entry] of Object.entries(config.checks)) {
+      let id: CheckId;
       try {
-        requestedId = validateConfigId(rawId);
+        id = validateConfigId(rawId);
       } catch (error) {
         failures.push({
           requestedId: asCheckId(rawId),
-          moduleName: `@sentiness/check-${rawId}`,
+          source: rawId,
           message: error instanceof Error ? error.message : 'invalid check id',
         });
         continue;
       }
-
-      if (!checkConfig.enabled) {
-        continue;
+      if (entry.tier && isTier(entry.tier)) {
+        tierOverrides.set(id, entry.tier);
       }
 
-      if (checkConfig.tier) {
-        tierOverrides.set(requestedId, checkConfig.tier);
-      }
-
-      const moduleName = `@sentiness/check-${requestedId}`;
       try {
-        const modulePath = requireFromCwd.resolve(moduleName);
-        checks.push(await importCheck(modulePath));
+        if (entry.path !== undefined) {
+          checks.push(await importDefault(linkedEntryFile(repoRoot, entry.path)));
+          continue;
+        }
+        const version = lock.checks[rawId]?.version;
+        const ref = { kind: 'check', id: rawId, version: version ?? '' } as const;
+        if (!version || !(await store.isMaterialized(ref))) {
+          failures.push({
+            requestedId: id,
+            source: `@sentiness/check-${rawId}`,
+            message: `check "${rawId}" is not in the cache — run \`sentiness install\``,
+          });
+          continue;
+        }
+        checks.push(await importDefault(checkEntryFile(store.slotPath(ref), rawId)));
       } catch (error) {
         failures.push({
-          requestedId,
-          moduleName,
-          message: error instanceof Error ? error.message : 'unknown check load error',
+          requestedId: id,
+          source: `@sentiness/check-${rawId}`,
+          message: error instanceof Error ? error.message : 'unknown load error',
         });
       }
     }
-
     return new CheckRegistry(checks, failures, tierOverrides);
   }
 

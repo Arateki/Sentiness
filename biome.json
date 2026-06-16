@@ -11,7 +11,8 @@
       "!packages/adapters/coverage",
       "!packages/checks/*/coverage",
       "!**/.sentiness/jobs",
-      "!**/.sentiness/cache"
+      "!**/.sentiness/cache",
+      "!**/.sentiness/home"
     ]
   },
   "formatter": {

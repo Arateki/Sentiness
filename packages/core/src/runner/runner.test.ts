@@ -1,13 +1,25 @@
 import { FixedClock, InMemoryFileSystem, InMemoryGitProvider } from '@sentiness/_test-utils';
 import { asCheckId, type Check } from '@sentiness/check-sdk';
 import { describe, expect, it, vi } from 'vitest';
-import { DEFAULT_CONFIG } from '../config/config.js';
+import type { ArtifactStore } from '../cache/artifact-store.js';
+import { DEFAULT_CONFIG, type ResolvedConfig } from '../config/config.js';
+import type { SentinessLock } from '../lock/schema.js';
 import { CheckRegistry } from '../registry/registry.js';
 import { runChecks } from './runner.js';
 
+const emptyLock: SentinessLock = { lockfileVersion: 1, engine: { version: '2.0.0' }, checks: {} };
+const stubStore: ArtifactStore = {
+  slotPath: () => '/unused',
+  isMaterialized: async () => false,
+  materialize: async () => ({ path: '/unused', integrity: '' }),
+};
+function makeRegistry(config: ResolvedConfig = DEFAULT_CONFIG): Promise<CheckRegistry> {
+  return CheckRegistry.fromResolved(config, emptyLock, stubStore, process.cwd());
+}
+
 describe('runner', () => {
   it('throws on trigger and tier mismatch', async () => {
-    const registry = await CheckRegistry.fromConfig(DEFAULT_CONFIG, process.cwd());
+    const registry = await makeRegistry();
     const fs = new InMemoryFileSystem();
     const git = new InMemoryGitProvider();
 
@@ -29,7 +41,7 @@ describe('runner', () => {
   });
 
   it('runs successfully with empty registry', async () => {
-    const registry = await CheckRegistry.fromConfig(DEFAULT_CONFIG, process.cwd());
+    const registry = await makeRegistry();
     const fs = new InMemoryFileSystem();
     const git = new InMemoryGitProvider();
 
@@ -54,7 +66,7 @@ describe('runner', () => {
 
   it('adds load failures to results', async () => {
     const config = { ...DEFAULT_CONFIG, checks: { missing: { enabled: true } } };
-    const registry = await CheckRegistry.fromConfig(config, process.cwd());
+    const registry = await makeRegistry(config);
     const fs = new InMemoryFileSystem();
     const git = new InMemoryGitProvider();
 
@@ -109,7 +121,7 @@ describe('runner', () => {
     };
 
     // We hack the registry instance to contain our mock checks
-    const registry = await CheckRegistry.fromConfig(DEFAULT_CONFIG, process.cwd());
+    const registry = await makeRegistry();
     Object.defineProperty(registry, 'checks', {
       value: [badCheck, unavailableCheck, failingRunCheck],
     });
@@ -158,7 +170,7 @@ describe('runner', () => {
       detect: async () => ({ available: true }),
       run,
     };
-    const registry = await CheckRegistry.fromConfig(DEFAULT_CONFIG, process.cwd());
+    const registry = await makeRegistry();
     Object.defineProperty(registry, 'checks', {
       value: [configCheck],
     });

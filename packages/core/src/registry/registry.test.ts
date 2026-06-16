@@ -2,99 +2,184 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { asCheckId } from '@sentiness/check-sdk';
-import { describe, expect, it } from 'vitest';
-import type { ResolvedConfig } from '../config/config.js';
-import { DEFAULT_CONFIG } from '../config/config.js';
-import { CheckLoadError, CheckNotFoundError, CheckRegistry } from './registry.js';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { ArtifactStore } from '../cache/artifact-store.js';
+import type { ArtifactRef, CachePaths } from '../cache/paths.js';
+import { resolveConfig, validateConfig } from '../config/config.js';
+import type { SentinessLock } from '../lock/schema.js';
+import { CheckLoadError, CheckRegistry } from './registry.js';
 
-describe('registry', () => {
-  it('loads checks successfully', async () => {
-    const config: ResolvedConfig = {
-      ...DEFAULT_CONFIG,
-      checks: {
-        'non-existent': { enabled: true, tier: 'slow' },
-        'invalid@@': { enabled: true },
-        disabled: { enabled: false },
-      },
-    };
+let repoRoot: string;
 
-    const registry = await CheckRegistry.fromConfig(config, process.cwd());
-    const failures = registry.loadFailures();
+beforeAll(() => {
+  repoRoot = mkdtempSync(join(tmpdir(), 'sentiness-reg-'));
+  // A path-linked check at <repoRoot>/local-check/dist/index.js
+  const pkg = join(repoRoot, 'local-check');
+  mkdirSync(join(pkg, 'dist'), { recursive: true });
+  writeFileSync(
+    join(pkg, 'package.json'),
+    JSON.stringify({
+      name: '@sentiness/check-demo',
+      type: 'module',
+      exports: { '.': { types: './dist/index.d.ts', default: './dist/index.js' } },
+    }),
+  );
+  writeFileSync(
+    join(pkg, 'dist', 'index.js'),
+    `export default { id: 'demo', category: 'lint', defaultTier: 'fast', detect: async () => ({ available: true }), run: async () => ({ status: 'ok', findings: [], durationMs: 0 }) };\n`,
+  );
+  // A path-linked package whose default export is not a valid check.
+  const badPkg = join(repoRoot, 'bad-check');
+  mkdirSync(join(badPkg, 'dist'), { recursive: true });
+  writeFileSync(
+    join(badPkg, 'package.json'),
+    JSON.stringify({
+      name: '@sentiness/check-bad',
+      type: 'module',
+      exports: { '.': './dist/index.js' },
+    }),
+  );
+  writeFileSync(join(badPkg, 'dist', 'index.js'), `export default { id: 'bad' };\n`);
+  writeFileSync(
+    join(repoRoot, 'package.json'),
+    JSON.stringify({ name: 'repo-root', private: true }),
+  );
+});
 
-    const invalidFailure = failures.find((f) => f.requestedId === asCheckId('invalid@@'));
-    expect(invalidFailure?.message).toMatch(/Invalid check id/);
+afterAll(() => rmSync(repoRoot, { recursive: true, force: true }));
 
-    const notFoundFailure = failures.find((f) => f.requestedId === asCheckId('non-existent'));
-    expect(notFoundFailure?.moduleName).toBe('@sentiness/check-non-existent');
+// A store stub: every check is "materialized" and its slot is the fixture dir.
+function stubStore(slot: string): ArtifactStore {
+  const paths: Pick<CachePaths, 'slotPath'> = { slotPath: () => slot };
+  return {
+    slotPath: (ref: ArtifactRef) => paths.slotPath(ref),
+    isMaterialized: async () => true,
+    materialize: async () => ({ path: slot, integrity: '' }),
+  };
+}
 
-    const slowChecks = registry.filterByTier('slow');
-    expect(slowChecks).toEqual([]);
+const emptyLock: SentinessLock = { lockfileVersion: 1, engine: { version: '2.0.0' }, checks: {} };
 
-    expect(registry.list()).toEqual([]);
-    expect(registry.get(asCheckId('non-existent'))).toBeUndefined();
+describe('CheckRegistry.fromResolved', () => {
+  it('loads a path-linked check from a local package', async () => {
+    const config = resolveConfig(
+      validateConfig({
+        schemaVersion: '2.0',
+        engine: '2.0.0',
+        checks: { demo: { path: 'local-check' } },
+      }),
+    );
+    const registry = await CheckRegistry.fromResolved(
+      config,
+      emptyLock,
+      stubStore('/unused'),
+      repoRoot,
+    );
+    expect(registry.list().map((c) => c.id)).toEqual(['demo']);
+    expect(registry.loadFailures()).toHaveLength(0);
   });
 
-  it('throws CheckNotFoundError and CheckLoadError', () => {
-    const notFound = new CheckNotFoundError(asCheckId('foo'));
-    expect(notFound.name).toBe('CheckNotFoundError');
+  it('honors a per-check tier override', async () => {
+    const config = resolveConfig(
+      validateConfig({
+        schemaVersion: '2.0',
+        engine: '2.0.0',
+        checks: { demo: { path: 'local-check', tier: 'slow' } },
+      }),
+    );
+    const registry = await CheckRegistry.fromResolved(
+      config,
+      emptyLock,
+      stubStore('/unused'),
+      repoRoot,
+    );
+    expect(registry.filterByTier('slow').map((c) => c.id)).toEqual(['demo']);
+    expect(registry.filterByTier('fast')).toEqual([]);
+  });
 
-    const loadErr = new CheckLoadError('msg', {
+  it('records a load failure for an invalid check id', async () => {
+    const config = resolveConfig(
+      validateConfig({
+        schemaVersion: '2.0',
+        engine: '2.0.0',
+        checks: { BadId: { path: 'local-check' } },
+      }),
+    );
+    const registry = await CheckRegistry.fromResolved(
+      config,
+      emptyLock,
+      stubStore('/unused'),
+      repoRoot,
+    );
+    expect(registry.list()).toHaveLength(0);
+    expect(registry.loadFailures()[0]?.message).toMatch(/Invalid check id/);
+  });
+
+  it('records a load failure when a path-linked check default export is invalid', async () => {
+    const config = resolveConfig(
+      validateConfig({
+        schemaVersion: '2.0',
+        engine: '2.0.0',
+        checks: { bad: { path: 'bad-check' } },
+      }),
+    );
+    const registry = await CheckRegistry.fromResolved(
+      config,
+      emptyLock,
+      stubStore('/unused'),
+      repoRoot,
+    );
+    expect(registry.list()).toHaveLength(0);
+    expect(registry.loadFailures()[0]?.message).toMatch(/category is invalid/);
+  });
+
+  it('records a load failure when a versioned check slot is not materialized', async () => {
+    const config = resolveConfig(
+      validateConfig({
+        schemaVersion: '2.0',
+        engine: '2.0.0',
+        checks: { biome: { version: '1.3.0' } },
+      }),
+    );
+    const notMaterialized: ArtifactStore = {
+      ...stubStore('/none'),
+      isMaterialized: async () => false,
+    };
+    const lock: SentinessLock = {
+      lockfileVersion: 1,
+      engine: { version: '2.0.0' },
+      checks: { biome: { version: '1.3.0' } },
+    };
+    const registry = await CheckRegistry.fromResolved(config, lock, notMaterialized, repoRoot);
+    expect(registry.list()).toHaveLength(0);
+    expect(registry.loadFailures()[0]?.message).toMatch(/sentiness install/);
+  });
+
+  it('get returns a loaded check and undefined for an unknown id', async () => {
+    const config = resolveConfig(
+      validateConfig({
+        schemaVersion: '2.0',
+        engine: '2.0.0',
+        checks: { demo: { path: 'local-check' } },
+      }),
+    );
+    const registry = await CheckRegistry.fromResolved(
+      config,
+      emptyLock,
+      stubStore('/unused'),
+      repoRoot,
+    );
+    expect(registry.get(asCheckId('demo'))).toBeDefined();
+    expect(registry.get(asCheckId('nope'))).toBeUndefined();
+  });
+
+  it('exposes the CheckLoadError class', () => {
+    const error = new CheckLoadError('msg', {
       requestedId: asCheckId('foo'),
-      moduleName: 'bar',
+      source: 'bar',
       message: 'err',
     });
-    expect(loadErr.name).toBe('CheckLoadError');
-    expect(loadErr.failure.moduleName).toBe('bar');
-  });
-
-  it('validates check exports through a real mock module', async () => {
-    const tempDir = mkdtempSync(join(tmpdir(), 'sentiness-registry-'));
-    mkdirSync(tempDir, { recursive: true });
-
-    try {
-      const writeMockPkg = (name: string, content: string) => {
-        mkdirSync(join(tempDir, 'node_modules', '@sentiness', name), { recursive: true });
-        writeFileSync(join(tempDir, 'node_modules', '@sentiness', name, 'index.js'), content);
-      };
-
-      writeMockPkg('check-bad1', `export default { id: 123 };`); // bad id
-      writeMockPkg('check-bad2', `export default { id: "a", category: "nope" };`); // bad category
-      writeMockPkg(
-        'check-bad3',
-        `export default { id: "a", category: "lint", defaultTier: "nope" };`,
-      ); // bad defaultTier
-      writeMockPkg(
-        'check-bad4',
-        `export default { id: "a", category: "lint", defaultTier: "fast", detect: 1 };`,
-      ); // bad detect function
-      writeMockPkg('check-bad5', `export const noDefault = true;`); // missing default export
-      writeMockPkg('check-bad6', `export default "not an object";`); // default export is not an object
-      writeFileSync(join(tempDir, 'package.json'), `{"name": "test-pkg"}`);
-
-      const config: ResolvedConfig = {
-        ...DEFAULT_CONFIG,
-        checks: {
-          bad1: { enabled: true },
-          bad2: { enabled: true },
-          bad3: { enabled: true },
-          bad4: { enabled: true },
-          bad5: { enabled: true },
-          bad6: { enabled: true },
-        },
-      };
-      const registry = await CheckRegistry.fromConfig(config, tempDir);
-
-      const getFail = (id: string) =>
-        registry.loadFailures().find((f) => f.requestedId === asCheckId(id))?.message;
-
-      expect(getFail('bad1')).toMatch(/check.id must be a string/);
-      expect(getFail('bad2')).toMatch(/check.category is invalid/);
-      expect(getFail('bad3')).toMatch(/check.defaultTier is invalid/);
-      expect(getFail('bad4')).toMatch(/check.detect and check.run must be functions/);
-      expect(getFail('bad5')).toMatch(/module has no default export/);
-      expect(getFail('bad6')).toMatch(/default export is not an object/);
-    } finally {
-      rmSync(tempDir, { recursive: true, force: true });
-    }
+    expect(error.name).toBe('CheckLoadError');
+    expect(error.failure.source).toBe('bar');
   });
 });

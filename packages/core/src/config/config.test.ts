@@ -3,102 +3,113 @@ import { describe, expect, it } from 'vitest';
 import {
   ConfigNotFoundError,
   ConfigParseError,
-  categoryFromString,
   loadConfig,
   resolveConfig,
   validateConfig,
 } from './config.js';
 
-describe('config', () => {
-  it('applies defaults', () => {
-    const config = resolveConfig(validateConfig({ schemaVersion: '1.0', checks: {} }));
+const minimal = {
+  schemaVersion: '2.0',
+  engine: '2.0.0',
+  checks: { biome: { version: '2.0.0' } },
+};
 
-    expect(config.tiers.fast.triggers).toContain('post-edit');
-    expect(config.baseline.path).toBe('.sentiness/baseline.json');
+describe('validateConfig', () => {
+  it('accepts a minimal v2 config', () => {
+    expect(() => validateConfig(minimal)).not.toThrow();
   });
 
-  it('rejects duplicate triggers', () => {
+  it('rejects a v1 schemaVersion with a migration hint', () => {
+    expect(() => validateConfig({ ...minimal, schemaVersion: '1.0' })).toThrowError(
+      /sentiness init/,
+    );
+  });
+
+  it('rejects a catalog entry with both version and path', () => {
+    expect(() =>
+      validateConfig({ ...minimal, checks: { biome: { version: '2.0.0', path: 'x' } } }),
+    ).toThrowError(/exactly one of/);
+  });
+
+  it('rejects a catalog entry with neither version nor path', () => {
+    expect(() => validateConfig({ ...minimal, checks: { biome: {} } })).toThrowError(
+      /exactly one of/,
+    );
+  });
+
+  it('rejects a zone referencing an unknown check id', () => {
+    expect(() =>
+      validateConfig({ ...minimal, zones: [{ path: 'apps/web', checks: ['ghost'] }] }),
+    ).toThrowError(/apps\/web.*ghost/);
+  });
+
+  it('rejects duplicate zone paths', () => {
+    expect(() =>
+      validateConfig({
+        ...minimal,
+        zones: [
+          { path: '.', checks: ['biome'] },
+          { path: '.', checks: ['biome'] },
+        ],
+      }),
+    ).toThrowError(/duplicate zone path/i);
+  });
+});
+
+describe('resolveConfig', () => {
+  it('normalizes an absent zones array to a single root zone with all catalog ids', () => {
+    const resolved = resolveConfig(
+      validateConfig({ ...minimal, checks: { biome: { version: '1' }, knip: { version: '1' } } }),
+    );
+    expect(resolved.zones).toEqual([{ path: '.', checks: ['biome', 'knip'] }]);
+  });
+
+  it('keeps explicit zones', () => {
+    const resolved = resolveConfig(
+      validateConfig({ ...minimal, zones: [{ path: 'apps/web', checks: ['biome'] }] }),
+    );
+    expect(resolved.zones).toEqual([{ path: 'apps/web', checks: ['biome'] }]);
+  });
+
+  it('applies tier and reporting defaults', () => {
+    const resolved = resolveConfig(validateConfig(minimal));
+    expect(resolved.tiers.fast.timeoutMs).toBe(30_000);
+    expect(resolved.reporting.compact).toBe(false);
+    expect(resolved.baseline.path).toBe('.sentiness/baseline.json');
+  });
+
+  it('rejects a trigger appearing in two tiers', () => {
     expect(() =>
       resolveConfig(
         validateConfig({
-          schemaVersion: '1.0',
+          ...minimal,
           tiers: {
-            fast: { triggers: ['pre-done'] },
-            standard: { triggers: ['pre-done'] },
+            fast: { triggers: ['pre-done'], timeoutMs: 1 },
+            standard: { triggers: ['pre-done'], timeoutMs: 1 },
           },
         }),
       ),
-    ).toThrow(ConfigParseError);
-    expect(() =>
-      resolveConfig(
-        validateConfig({
-          schemaVersion: '1.0',
-          tiers: {
-            fast: { triggers: ['pre-done'] },
-            standard: { triggers: ['pre-done'] },
-          },
-        }),
-      ),
-    ).toThrow(/appears in both/);
+    ).toThrowError(/appears in both/);
+  });
+});
+
+describe('loadConfig', () => {
+  it('throws ConfigNotFoundError when no config file exists', async () => {
+    const fs = new InMemoryFileSystem();
+    await expect(loadConfig('/project', fs)).rejects.toBeInstanceOf(ConfigNotFoundError);
   });
 
-  it('throws ConfigParseError with normalized Zod error', () => {
-    expect(() => validateConfig({ schemaVersion: 'invalid' })).toThrow(ConfigParseError);
-    expect(() => validateConfig({ schemaVersion: 'invalid' })).toThrow(/schemaVersion: Invalid/);
+  it('loads and resolves a JSON config', async () => {
+    const fs = new InMemoryFileSystem({
+      '/project/sentiness.config.json': JSON.stringify(minimal),
+    });
+    const resolved = await loadConfig('/project', fs);
+    expect(resolved.engine).toBe('2.0.0');
+    expect(resolved.zones).toEqual([{ path: '.', checks: ['biome'] }]);
   });
 
-  it('categoryFromString returns valid category or undefined', () => {
-    expect(categoryFromString('lint')).toBe('lint');
-    expect(categoryFromString('security')).toBe('security');
-    expect(categoryFromString('platform')).toBe('platform');
-    expect(categoryFromString('invalid-category')).toBeUndefined();
-  });
-
-  describe('agents', () => {
-    it('accepts every supported agent adapter name', () => {
-      const config = resolveConfig(
-        validateConfig({
-          schemaVersion: '1.0',
-          agents: ['claude-code', 'claude-code-skill', 'codex', 'codex-skill', 'gemini'],
-        }),
-      );
-      expect(config.agents).toEqual([
-        'claude-code',
-        'claude-code-skill',
-        'codex',
-        'codex-skill',
-        'gemini',
-      ]);
-    });
-
-    it('rejects unknown agent names', () => {
-      expect(() => validateConfig({ schemaVersion: '1.0', agents: ['vscode'] })).toThrow(
-        ConfigParseError,
-      );
-    });
-  });
-
-  describe('loadConfig', () => {
-    it('throws ConfigNotFoundError when no config is found', async () => {
-      const fs = new InMemoryFileSystem();
-      await expect(loadConfig('/project', fs)).rejects.toThrow(ConfigNotFoundError);
-    });
-
-    it('loads and resolves sentiness.config.json', async () => {
-      const fs = new InMemoryFileSystem({
-        '/project/sentiness.config.json': JSON.stringify({ schemaVersion: '1.0', checks: {} }),
-      });
-      const config = await loadConfig('/project', fs);
-      expect(config.schemaVersion).toBe('1.0');
-      expect(config.baseline.path).toBe('.sentiness/baseline.json');
-    });
-
-    it('throws ConfigParseError on invalid JSON syntax in sentiness.config.json', async () => {
-      const fs = new InMemoryFileSystem({
-        '/project/sentiness.config.json': 'invalid { json',
-      });
-      await expect(loadConfig('/project', fs)).rejects.toThrow(ConfigParseError);
-      await expect(loadConfig('/project', fs)).rejects.toThrow(/Invalid JSON in/);
-    });
+  it('wraps invalid JSON in ConfigParseError', async () => {
+    const fs = new InMemoryFileSystem({ '/project/sentiness.config.json': '{ not json' });
+    await expect(loadConfig('/project', fs)).rejects.toBeInstanceOf(ConfigParseError);
   });
 });

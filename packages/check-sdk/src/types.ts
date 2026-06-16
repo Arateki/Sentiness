@@ -139,6 +139,7 @@ export type ExecFileOptions = {
   readonly env?: Readonly<Record<string, string>>;
   readonly signal?: AbortSignal;
   readonly timeoutMs?: number;
+  readonly binPaths?: readonly string[];
 };
 
 export type ExecFileResult = {
@@ -169,6 +170,7 @@ export type CheckContext<TConfig = Record<string, unknown>> = {
   readonly fs: FileSystem;
   readonly git?: GitProvider;
   readonly process: ProcessRunner;
+  readonly binPaths?: readonly string[];
   readonly checkConfig: TConfig;
 };
 

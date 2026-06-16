@@ -1,7 +1,7 @@
 import { dirname, isAbsolute, join } from 'node:path';
 import type { Check, DefaultConfigContext, FileSystem } from '@sentiness/check-sdk';
 import { loadConfig } from '../../config/config.js';
-import { CheckRegistry } from '../../registry/registry.js';
+import { buildRegistry } from './build-registry.js';
 import type { CommandDeps, ParsedArgs } from './types.js';
 
 type WriteOutcome = {
@@ -51,7 +51,7 @@ async function maybeWriteDefault(
 
 export async function initConfigCommand(args: ParsedArgs, deps: CommandDeps): Promise<number> {
   const config = await loadConfig(deps.cwd, deps.fs);
-  const registry = await CheckRegistry.fromConfig(config, deps.cwd);
+  const registry = await buildRegistry(config, deps);
   const force = args.force === true;
   const requestedId = typeof args.check === 'string' ? args.check : undefined;
   const candidates = requestedId
