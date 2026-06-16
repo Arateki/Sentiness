@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/sentiness.png" alt="Sentiness" width="180" />
+  <img src="docs/assets/sentiness.png" alt="Sentiness" width="260" />
 </p>
 
 <h1 align="center">Sentiness</h1>
