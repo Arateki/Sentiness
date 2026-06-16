@@ -2,8 +2,6 @@
   <img src="docs/assets/sentiness.png" alt="Sentiness" width="260" />
 </p>
 
-<h1 align="center">Sentiness</h1>
-
 <p align="center">
   One normalized JSON quality report for AI coding agents and CI.
 </p>
