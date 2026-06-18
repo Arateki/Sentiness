@@ -6,6 +6,43 @@ on:
   pull_request:
 
 jobs:
+  changeset:
+    # Standard guardrail: every PR must consciously decide the release question.
+    # `changeset status` fails when a publishable package changed without a
+    # changeset; if the change needs no release, add an empty one
+    # (`pnpm changeset add --empty`). Runs only on PRs — pushes to main consume
+    # changesets via the release workflow's "Version Packages" PR.
+    name: Changeset
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Fetch base branch
+        run: git fetch origin main:refs/remotes/origin/main
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      # Skipped on the Changesets "Version Packages" PR, which consumes the
+      # changeset files (so the gate would otherwise fail and block releases).
+      # The job still runs and reports success, satisfying the required check.
+      - name: Require a changeset (or an explicit empty one)
+        if: github.head_ref != 'changeset-release/main'
+        run: pnpm changeset status --since=origin/main
+
   verify:
     runs-on: ubuntu-latest
     steps:

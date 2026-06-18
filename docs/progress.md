@@ -105,6 +105,34 @@ the repo root. All existing check `makeContext` test helpers gained
 `pnpm -r typecheck`, `pnpm -r test` (core 209, SDK 13 incl. the new `repoRoot`
 type test, all checks + cli green), and `pnpm lint` (219 files) are clean.
 
+### TV2.1 zone resolver — done (2026-06-17)
+
+New pure module `packages/core/src/zones/zones.ts` exporting `resolveZones(config,
+repoRoot)`, the resolver Phase V2 per-zone execution (TV2.2) builds on. It maps the
+v2 `ResolvedConfig.zones` into `ResolvedZone[]`, each carrying `path`, `absRoot`
+(`join(repoRoot, path)`), and `ResolvedCheckPlacement[]`:
+
+- `tier` = zone override → catalog entry → fallback. **Deviation flagged:** the
+  spec types `placement.tier` as a required `Tier`, but `resolveZones` is pure over
+  config and cannot see a check's `defaultTier`; the config tier is optional. Since
+  `init` always writes a `tier` per catalog entry, the resolver uses
+  `zoneOverride.tier ?? catalogEntry.tier ?? 'standard'`. The `'standard'` fallback
+  only bites hand-written configs that omit tier; TV2.2 can refine the effective
+  tier against `check.defaultTier` where the `Check` instance is in scope.
+- `options` = catalog options deep-merged with the zone override (zone wins;
+  `thresholds` and nested plain objects merge recursively, arrays/primitives
+  replace). Resolution metadata (`version`, `path`, `tier`) never leaks into
+  `options`; `id`/`tier` are stripped from the override.
+- Single-root configs need no special case — `resolveConfig` already normalizes an
+  absent `zones` to one zone at `'.'` with every catalog id, so the root zone's
+  `absRoot === repoRoot`.
+
+Internal to `core` (the runner imports it directly; not re-exported from
+`index.ts`). `pnpm --filter @sentiness/core typecheck`, the 6-case `zones.test.ts`
+(root normalization, absRoot join, multi-zone, override/threshold deep-merge,
+bare-id catalog tier, repeated check across zones), the full core suite (215
+tests), and `pnpm lint` (221 files) are green.
+
 ## Implementation approach
 
 The implementation should progress in usable slices, not by completing the whole specification before the CLI can run.
