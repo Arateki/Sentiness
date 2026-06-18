@@ -150,6 +150,9 @@ async function runOneCheck(
       : checkConfig;
     const checkContext = {
       cwd: input.cwd,
+      // Single-zone today: the zone root is the repo root. TV2.2 will set
+      // `cwd` to the zone root while keeping `repoRoot` at the repository root.
+      repoRoot: input.cwd,
       tier: context.tier,
       trigger: context.trigger,
       baseRef: context.baseRef,

@@ -158,7 +158,18 @@ export type ProcessRunner = {
 };
 
 export type CheckContext<TConfig = Record<string, unknown>> = {
+  /**
+   * Working directory the check is rooted at. In a polyglot monorepo this is the
+   * zone root (e.g. `crates/engine`), not necessarily the repository root.
+   */
   readonly cwd: string;
+  /**
+   * Absolute path to the repository root. Equals `cwd` for single-zone projects;
+   * for zoned runs it lets the rare check that needs repo-level context (shared
+   * config, workspace manifests) reach above its zone. Most checks only need
+   * `cwd`.
+   */
+  readonly repoRoot: string;
   readonly tier: Tier;
   readonly trigger: string | null;
   readonly baseRef: string | null;

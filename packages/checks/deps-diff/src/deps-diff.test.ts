@@ -11,6 +11,7 @@ import { depsDiffCheck } from './deps-diff.js';
 function context(fs: InMemoryFileSystem, git?: InMemoryGitProvider): CheckContext {
   return {
     cwd: '/project',
+    repoRoot: '/project',
     tier: 'fast',
     trigger: null,
     baseRef: 'main',

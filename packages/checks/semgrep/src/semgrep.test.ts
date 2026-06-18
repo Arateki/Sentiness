@@ -6,6 +6,7 @@ import { semgrepCheck } from './semgrep.js';
 function context(process: FakeProcessRunner, fs = new InMemoryFileSystem()): CheckContext {
   return {
     cwd: '/project',
+    repoRoot: '/project',
     tier: 'slow',
     trigger: null,
     baseRef: null,

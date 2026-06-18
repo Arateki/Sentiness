@@ -6,6 +6,7 @@ import { osvScannerCheck } from './osv-scanner.js';
 function context(process: FakeProcessRunner, fs: InMemoryFileSystem): CheckContext {
   return {
     cwd: '/project',
+    repoRoot: '/project',
     tier: 'slow',
     trigger: null,
     baseRef: null,

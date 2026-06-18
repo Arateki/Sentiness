@@ -69,6 +69,7 @@ export async function doctorCommand(_args: ParsedArgs, deps: CommandDeps): Promi
       try {
         const detect = await check.detect({
           cwd: deps.cwd,
+          repoRoot: deps.cwd,
           tier: checkConfig.tier ?? check.defaultTier,
           trigger: null,
           baseRef: null,

@@ -5,6 +5,7 @@ import { biomeCheck } from './biome.js';
 function context(process: FakeProcessRunner) {
   return {
     cwd: '/project',
+    repoRoot: '/project',
     tier: 'fast' as const,
     trigger: null,
     baseRef: null,

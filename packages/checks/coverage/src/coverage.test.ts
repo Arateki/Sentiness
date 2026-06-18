@@ -11,6 +11,7 @@ function makeContext(
 ): CheckContext {
   return {
     cwd: '/project',
+    repoRoot: '/project',
     tier: 'standard',
     trigger: null,
     baseRef: null,
