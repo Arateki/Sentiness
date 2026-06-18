@@ -1,6 +1,6 @@
 {
   "name": "@sentiness/cli",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Thin global launcher for Sentiness: resolves the pinned engine and dispatches.",
   "license": "MIT",
   "repository": {

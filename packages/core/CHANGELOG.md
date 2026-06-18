@@ -1,5 +1,18 @@
 # @sentiness/core
 
+## 1.0.1
+
+### Patch Changes
+
+- ff68c44: Add the internal `resolveZones` zone resolver (`packages/core/src/zones`), the
+  foundation for Phase V2 per-zone execution. It maps a v2 config's `zones` into
+  rooted, option-merged placements (`absRoot = join(repoRoot, path)`; catalog
+  options deep-merged with per-zone overrides). No public API change — the module is
+  internal to `core` and not re-exported from `index.ts`.
+- Updated dependencies [ff68c44]
+  - @sentiness/check-sdk@0.4.0
+  - @sentiness/adapters@0.1.4
+
 ## 1.0.0
 
 ### Major Changes

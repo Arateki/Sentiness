@@ -1,6 +1,6 @@
 {
   "name": "@sentiness/check-dependency-cruiser",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Sentiness check that reports architecture rule violations via dependency-cruiser.",
   "license": "MIT",
   "engines": {
