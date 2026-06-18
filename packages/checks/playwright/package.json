@@ -1,6 +1,6 @@
 {
   "name": "@sentiness/check-playwright",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Sentiness check that runs Playwright E2E tests and exposes screenshot paths for visual verification by agents.",
   "license": "MIT",
   "engines": {

@@ -1,5 +1,12 @@
 # @sentiness/check-coverage
 
+## 0.1.3
+
+### Patch Changes
+
+- Updated dependencies [ff68c44]
+  - @sentiness/check-sdk@0.4.0
+
 ## 0.1.2
 
 ### Patch Changes

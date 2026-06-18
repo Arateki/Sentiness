@@ -1,6 +1,6 @@
 {
   "name": "@sentiness/check-knip",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Sentiness check that reports unused code and dependencies via Knip.",
   "license": "MIT",
   "engines": {

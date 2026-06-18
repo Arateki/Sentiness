@@ -1,5 +1,12 @@
 # @sentiness/check-knip
 
+## 0.2.2
+
+### Patch Changes
+
+- Updated dependencies [ff68c44]
+  - @sentiness/check-sdk@0.4.0
+
 ## 0.2.1
 
 ### Patch Changes

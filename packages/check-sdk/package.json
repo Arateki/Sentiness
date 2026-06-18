@@ -1,6 +1,6 @@
 {
   "name": "@sentiness/check-sdk",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Public types and contract for writing Sentiness check plugins.",
   "license": "MIT",
   "engines": {

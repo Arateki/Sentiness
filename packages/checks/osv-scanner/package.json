@@ -1,6 +1,6 @@
 {
   "name": "@sentiness/check-osv-scanner",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Sentiness check that reports known vulnerabilities in lockfiles via OSV Scanner.",
   "license": "MIT",
   "engines": {

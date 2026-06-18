@@ -1,6 +1,6 @@
 {
   "name": "@sentiness/check-jscpd",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Sentiness check that reports copy/paste code duplication via jscpd.",
   "license": "MIT",
   "engines": {

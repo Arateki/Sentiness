@@ -1,6 +1,6 @@
 {
   "name": "@sentiness/check-eslint",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Sentiness check that runs ESLint and maps diagnostics to normalized findings, for ecosystems Biome cannot fully lint (e.g. Vue SFCs).",
   "license": "MIT",
   "engines": {
