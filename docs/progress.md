@@ -91,6 +91,20 @@ demo config was rejected by the v2 loader. All 14 E2E cases pass, alongside 209
 unit tests, typecheck, lint, `check:release-packages` (15 packages), and the
 dogfood `check --tier=fast`.
 
+### TV2.3 SDK `CheckContext.repoRoot` — done (2026-06-17)
+
+Additive SDK field unblocking the Phase V2 per-zone runner (TV2.2) and the Phase
+V3 cross-language proof (`check-clippy`, TV3.2). `CheckContext` now carries
+`readonly repoRoot: string` alongside `cwd`: `cwd` is the zone root (per-zone in a
+polyglot monorepo), `repoRoot` is the repository root for the rare check that needs
+repo-level context. Single-zone today, so the runner and `doctor` set
+`repoRoot = cwd`; TV2.2 will set `cwd = zone.absRoot` while keeping `repoRoot` at
+the repo root. All existing check `makeContext` test helpers gained
+`repoRoot: '/project'` (mirrors their `cwd`), so the check suites pass unchanged.
+
+`pnpm -r typecheck`, `pnpm -r test` (core 209, SDK 13 incl. the new `repoRoot`
+type test, all checks + cli green), and `pnpm lint` (219 files) are clean.
+
 ## Implementation approach
 
 The implementation should progress in usable slices, not by completing the whole specification before the CLI can run.

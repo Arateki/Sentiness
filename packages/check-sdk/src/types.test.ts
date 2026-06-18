@@ -53,6 +53,12 @@ describe('SDK types', () => {
     expectTypeOf<ExecFileOptions['binPaths']>().toEqualTypeOf<readonly string[] | undefined>();
   });
 
+  it('exposes the monorepo root alongside the per-zone cwd', () => {
+    expectTypeOf<CheckContext>().toHaveProperty('repoRoot');
+    expectTypeOf<CheckContext['repoRoot']>().toEqualTypeOf<string>();
+    expectTypeOf<CheckContext['cwd']>().toEqualTypeOf<string>();
+  });
+
   it('orders severities from most severe to least severe', () => {
     expect(['warning', 'error', 'info'].sort(compareSeverity)).toEqual([
       'error',

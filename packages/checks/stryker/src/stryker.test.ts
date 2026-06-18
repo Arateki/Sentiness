@@ -6,6 +6,7 @@ import { strykerCheck } from './stryker.js';
 function makeContext(fs: InMemoryFileSystem, process: FakeProcessRunner): CheckContext {
   return {
     cwd: '/project',
+    repoRoot: '/project',
     tier: 'slow',
     trigger: null,
     baseRef: null,

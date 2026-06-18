@@ -7,6 +7,7 @@ import { dependencyCruiserCheck } from './dependency-cruiser.js';
 function context(process: FakeProcessRunner, fs = new InMemoryFileSystem()): CheckContext {
   return {
     cwd: '/project',
+    repoRoot: '/project',
     tier: 'standard',
     trigger: null,
     baseRef: null,
